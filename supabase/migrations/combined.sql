@@ -228,6 +228,24 @@ end;
 $$;
 
 -- ============================================================
+-- RLS HELPER FUNCTIONS (security definer — bypasses RLS for internal lookups)
+-- ============================================================
+
+-- Returns all workspace IDs the given user belongs to (avoids recursive RLS on workspace_members)
+create or replace function get_user_workspace_ids(p_user_id uuid)
+returns setof uuid language sql security definer
+set search_path = public as $$
+  select workspace_id from workspace_members where user_id = p_user_id;
+$$;
+
+-- Returns true if the given user has role = 'admin' in profiles (avoids recursive RLS on profiles)
+create or replace function is_admin(p_user_id uuid)
+returns boolean language sql security definer
+set search_path = public as $$
+  select exists (select 1 from profiles where id = p_user_id and role = 'admin');
+$$;
+
+-- ============================================================
 -- RLS POLICIES — all tables exist by this point
 -- ============================================================
 
@@ -239,14 +257,12 @@ create policy profiles_update_own on profiles
   for update using (id = auth.uid());
 
 create policy profiles_select_admin on profiles
-  for select using (
-    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
-  );
+  for select using (is_admin(auth.uid()));
 
 -- workspaces
 create policy workspaces_select_members on workspaces
   for select using (
-    id in (select workspace_id from workspace_members where user_id = auth.uid())
+    id in (select get_user_workspace_ids(auth.uid()))
   );
 
 create policy workspaces_update_owner on workspaces
@@ -256,14 +272,12 @@ create policy workspaces_delete_owner on workspaces
   for delete using (owner_id = auth.uid());
 
 create policy workspaces_select_admin on workspaces
-  for select using (
-    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
-  );
+  for select using (is_admin(auth.uid()));
 
 -- workspace_members
 create policy members_select_same_workspace on workspace_members
   for select using (
-    workspace_id in (select workspace_id from workspace_members where user_id = auth.uid())
+    workspace_id in (select get_user_workspace_ids(auth.uid()))
   );
 
 create policy members_update_owner_or_admin on workspace_members
@@ -289,7 +303,7 @@ create policy members_delete_owner_or_admin on workspace_members
 -- invitations
 create policy invitations_select_workspace on invitations
   for select using (
-    workspace_id in (select workspace_id from workspace_members where user_id = auth.uid())
+    workspace_id in (select get_user_workspace_ids(auth.uid()))
   );
 
 create policy invitations_insert_owner_or_admin on invitations
@@ -315,34 +329,32 @@ create policy invitations_delete_owner_or_admin on invitations
 -- subscriptions
 create policy subscriptions_select_members on subscriptions
   for select using (
-    workspace_id in (select workspace_id from workspace_members where user_id = auth.uid())
+    workspace_id in (select get_user_workspace_ids(auth.uid()))
   );
 
 create policy subscriptions_select_admin on subscriptions
-  for select using (
-    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
-  );
+  for select using (is_admin(auth.uid()));
 
 -- usage
 create policy usage_select_members on usage
   for select using (
-    workspace_id in (select workspace_id from workspace_members where user_id = auth.uid())
+    workspace_id in (select get_user_workspace_ids(auth.uid()))
   );
 
 -- projects
 create policy projects_select_members on projects
   for select using (
-    workspace_id in (select workspace_id from workspace_members where user_id = auth.uid())
+    workspace_id in (select get_user_workspace_ids(auth.uid()))
   );
 
 create policy projects_insert_members on projects
   for insert with check (
-    workspace_id in (select workspace_id from workspace_members where user_id = auth.uid())
+    workspace_id in (select get_user_workspace_ids(auth.uid()))
   );
 
 create policy projects_update_members on projects
   for update using (
-    workspace_id in (select workspace_id from workspace_members where user_id = auth.uid())
+    workspace_id in (select get_user_workspace_ids(auth.uid()))
   );
 
 create policy projects_delete_owner_or_admin on projects
@@ -357,6 +369,11 @@ create policy projects_delete_owner_or_admin on projects
 
 -- activity_log
 create policy activity_select_admin on activity_log
-  for select using (
-    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
-  );
+  for select using (is_admin(auth.uid()));
+
+-- ============================================================
+-- TABLE GRANTS (required when tables are created via SQL Editor, not Supabase UI)
+-- ============================================================
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant execute on all functions in schema public to authenticated;
