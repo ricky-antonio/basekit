@@ -92,3 +92,6 @@ supabase/seed.sql.backup
 # Personal methodology / workflow files (not part of the project)
 new-project-scaffold.md
 startup-prompt.md
+
+# Sentry Config File
+.env.sentry-build-plugin
