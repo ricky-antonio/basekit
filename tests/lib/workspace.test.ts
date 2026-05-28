@@ -1,0 +1,107 @@
+import { describe, it, expect, vi, beforeEach } from "vitest"
+import type { User } from "@supabase/supabase-js"
+import {
+  mockSupabase,
+  mockSupabaseFrom,
+  mockSupabaseRpc,
+  resetSupabaseMock,
+} from "@/tests/mocks/supabase"
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => mockSupabase,
+  createServiceClient: () => mockSupabase,
+}))
+
+vi.mock("@/lib/activity", () => ({
+  logActivity: vi.fn().mockResolvedValue(undefined),
+}))
+
+const { getWorkspace, bootstrapWorkspace } = await import("@/lib/workspace")
+const { logActivity } = await import("@/lib/activity")
+
+const fakeUser: User = {
+  id: "user-abc-123",
+  email: "test@example.com",
+  app_metadata: {},
+  user_metadata: {},
+  aud: "authenticated",
+  created_at: new Date().toISOString(),
+}
+
+const fakeWorkspace = {
+  id: "ws-001",
+  name: "test",
+  slug: "test-xyz",
+  owner_id: fakeUser.id,
+  created_at: new Date().toISOString(),
+}
+
+beforeEach(() => {
+  resetSupabaseMock()
+  vi.clearAllMocks()
+})
+
+describe("getWorkspace", () => {
+  it("returns the user's single workspace", async () => {
+    mockSupabaseFrom("workspaces", { data: fakeWorkspace, error: null })
+    const result = await getWorkspace(fakeUser)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.id).toBe(fakeWorkspace.id)
+      expect(result.data.slug).toBe(fakeWorkspace.slug)
+    }
+  })
+
+  it("returns ok=false when user has no workspace yet", async () => {
+    mockSupabaseFrom("workspaces", {
+      data: null,
+      error: { message: "No rows found" },
+    })
+    const result = await getWorkspace(fakeUser)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe("NOT_FOUND")
+    }
+  })
+})
+
+describe("bootstrapWorkspace", () => {
+  it("calls the RPC with derived slug", async () => {
+    const newId = "ws-new-001"
+    mockSupabaseRpc("bootstrap_workspace", { data: newId, error: null })
+    const result = await bootstrapWorkspace(fakeUser.id, fakeUser.email!)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data).toBe(newId)
+    }
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      "bootstrap_workspace",
+      expect.objectContaining({ p_user_id: fakeUser.id }),
+    )
+  })
+
+  it("returns ok=false on RPC error", async () => {
+    mockSupabaseRpc("bootstrap_workspace", {
+      data: null,
+      error: { message: "DB error" },
+    })
+    const result = await bootstrapWorkspace(fakeUser.id, fakeUser.email!)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe("INTERNAL_ERROR")
+    }
+  })
+
+  it("logs an activity event on success", async () => {
+    const newId = "ws-new-002"
+    mockSupabaseRpc("bootstrap_workspace", { data: newId, error: null })
+    await bootstrapWorkspace(fakeUser.id, fakeUser.email!)
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "workspace.created",
+        workspaceId: newId,
+        actorId: fakeUser.id,
+      }),
+    )
+  })
+})
