@@ -13,9 +13,7 @@ _(no checkpoint closeouts yet — first will be added when Checkpoint 1.1 finish
 - [ ] Configure `tsconfig.json` with `strict`, `noUncheckedIndexedAccess`, `noImplicitOverride` (next unchecked item in Checkpoint 1.1)
 
 ## Known issues
-- `shadcn@4.x add form` silently no-ops — install `react-hook-form` + `@hookform/resolvers` manually when the first form is built (likely Phase 1.2 or 1.3)
-- `npm audit` reports 3 moderate severity vulnerabilities (all transitive) — review before deploy
-- `npm warn EBADENGINE` on `mute-stream@4.0.0` wants Node ≥22.22.2 (we're on 22.14.0) — non-blocking; consider bumping Node in CI
+- `npm audit` reports a moderate-severity `postcss` XSS advisory pulled in transitively via Next 15. **Accepted, not fixed** — see DECISIONS.md → "Accepted postcss XSS advisory (transitive via Next 15)". Not exploitable in our context (we author all CSS); the upstream fix requires Next 16.3+. Re-evaluate when we revisit Next 16.
 
 ## Setup notes
 
@@ -29,11 +27,17 @@ The "Run scaffold command" step in Checkpoint 1.1 was completed in a Claude sess
 - `.claude/settings.local.json` added to `.gitignore` and untracked
 - For exact resolved versions: `npm list --depth=0` or read `package.json`
 
-Two commits on `origin/main`:
-1. `Initial commit from Create Next App`
-2. `phase 1.1 scaffold — Next 15 + Tailwind 4 + shadcn + initial deps`
-
 Resume Checkpoint 1.1 at the **Configure tsconfig.json** task — the next unchecked item in `.claude/phases/1-foundation.md`.
+
+### 2026-05-27 — known-issue resolutions (post-scaffold)
+After the scaffold installed, three known issues were addressed in the same Claude session:
+
+- **shadcn `form` component:** installed `react-hook-form@7` + `@hookform/resolvers@5`; hand-authored `components/ui/form.tsx` matching shadcn 4.x style (radix-ui monolithic `Slot.Root` import + `data-slot` attributes). Build + type-check pass.
+- **Node engine warning:** added `engines.node ">=22.22.2"` to `package.json` and created `.nvmrc` pinning `22.22.2`. **You must run `nvm install 22.22.2 && nvm use` locally** to silence the EBADENGINE warning. CI should also install ≥22.22.2.
+- **eslint.config.mjs:** create-next-app@16 generated a flat-config import (`eslint-config-next/core-web-vitals`) that Next 15's eslint-config-next doesn't export. Rewrote to the Next-15-standard `FlatCompat` pattern. `npm run build` now lints cleanly.
+- **postcss XSS advisory:** accepted, not fixed (see Known issues + DECISIONS.md).
+
+Last known-good build: `npm run build` → clean (zero TS errors, zero lint warnings, 5 routes generated).
 
 ---
 

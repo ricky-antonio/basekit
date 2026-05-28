@@ -5,6 +5,17 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 
 ---
 
+## Accepted postcss XSS advisory (transitive via Next 15)
+**Decision:** Accept the moderate-severity `postcss <8.5.10` XSS advisory rather than running `npm audit fix --force`. Do not override the postcss version via package.json `overrides`.
+**Why:** The vulnerability (`GHSA-qx2v-qp2m-jg93`) is exploitable only when **untrusted CSS** is processed via postcss's stringify output. Every line of CSS in this project is authored by us — Tailwind utilities + our own `globals.css` — never user-supplied. The fix `npm audit fix --force` proposes (downgrading Next to `9.3.3`) would destroy the project. The actual fix lives upstream in Next 16.3+ which we cannot adopt without revisiting the Next 15 pin. Will re-evaluate when we revisit Next 16.
+**Alternatives rejected:**
+- `npm audit fix --force` — destructive Next downgrade.
+- Adopt Next 16 to pull in the postcss fix — see "Pinned Next.js 15 instead of accepting 16".
+- Override postcss via package.json `overrides` — fragile; Next uses postcss internals that may not survive a major postcss bump.
+**Date:** 2026-05-27
+
+---
+
 ## Pinned Next.js 15 instead of accepting 16
 **Decision:** Pin `next` and `eslint-config-next` to `15.x` even though `npm install next` resolves to `16.2.6` (latest stable as of the scaffold install).
 **Why:** All architecture docs (`.claude/architecture.md`, `.claude/rules/code.md`, the phase files) were written against Next.js 15 patterns. `create-next-app@16` installs an `AGENTS.md` that explicitly warns *"This is NOT the Next.js you know — breaking changes; read `node_modules/next/dist/docs/` before writing any code."* Adopting 16 would mean reading and reconciling those changes against our existing patterns BEFORE the first checkpoint could start — an unscoped detour. Pinning 15 keeps the project on the version the docs were written against. Evaluate 16 as a post-v1 upgrade.
