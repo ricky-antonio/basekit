@@ -15,9 +15,16 @@ function slugify(text: string): string {
 }
 
 function deriveSlug(email: string): string {
-  const base = slugify(email.split("@")[0] ?? "workspace")
+  const localPart = email.split("@")[0] ?? ""
+  const slugged = slugify(localPart)
+  const base = slugged.length > 0 ? slugged : "workspace"
   const suffix = Math.random().toString(36).slice(2, 7)
   return `${base}-${suffix}`
+}
+
+function deriveName(email: string): string {
+  const localPart = email.split("@")[0]?.trim() ?? ""
+  return localPart.length > 0 ? localPart : "My Workspace"
 }
 
 export async function getWorkspace(user: User): Promise<ApiResult<Workspace>> {
@@ -67,7 +74,7 @@ export async function bootstrapWorkspace(
 ): Promise<ApiResult<string>> {
   const supabase = createServiceClient()
 
-  const name = email.split("@")[0] ?? "My Workspace"
+  const name = deriveName(email)
   const slug = deriveSlug(email)
 
   const { data, error } = await supabase.rpc("bootstrap_workspace", {

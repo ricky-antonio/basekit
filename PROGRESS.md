@@ -6,13 +6,14 @@
 Phase 1 — Foundation + Auth + Workspaces (in progress)
 
 ## Current checkpoint
-Checkpoint 1.1 — Database + lib foundation + test mocks + Sentry (in progress — scaffold installed)
+Checkpoint 1.3 — App shell + dashboard + settings skeleton (not yet started)
 
 ## Completed
-_(no checkpoint closeouts yet — first will be added when Checkpoint 1.1 finishes)_
+- [2026-05-28] Phase 1.2 — Auth flow end-to-end. (See "Checkpoint 1.2 closeout" below.)
+- [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-_(none — Checkpoint 1.1 code complete, awaiting manual verification and commit)_
+_(none — Checkpoint 1.2 complete, awaiting commit before 1.3)_
 
 ## Known issues
 - `npm audit` reports a moderate-severity `postcss` XSS advisory pulled in transitively via Next 15. **Accepted, not fixed** — see DECISIONS.md → "Accepted postcss XSS advisory (transitive via Next 15)". Not exploitable in our context (we author all CSS); the upstream fix requires Next 16.3+. Re-evaluate when we revisit Next 16.
@@ -61,6 +62,95 @@ Last known-good build: `npm run build` → clean (zero TS errors, zero lint warn
 
 _(Appended chronologically as checkpoints complete. Newest at the top.
 Each closeout follows the 8-item template defined in CLAUDE.md → Checkpoint protocol.)_
+
+## Checkpoint 1.2 closeout — 2026-05-28
+
+### 1. Planned vs delivered
+
+- ✅ `lib/validation/auth.ts` — Zod schemas for login, signup, forgot-password, reset-password
+- ✅ `app/(auth)/callback/route.ts` — code exchange, first-sign-in detection, `bootstrapWorkspace` call, open-redirect guard, redirect to `/dashboard` (or `?next=` path)
+- ✅ `app/(auth)/actions.ts` — `loginAction`, `signupAction`, `forgotPasswordAction`, `resetPasswordAction` — all rate-limited, all Zod-validated, redirects on success, returns `ApiResult` on failure
+- ✅ `components/auth/GoogleAuthButton.tsx` — client component, sets `loading=true` immediately, no reset (browser navigates away)
+- ✅ `app/(auth)/layout.tsx` — centered card with wordmark (base regular / kit 800 teal)
+- ✅ `app/(auth)/login/page.tsx` — email+password form + Google button + forgot-password link
+- ✅ `app/(auth)/signup/page.tsx` — display-name + email + password form + Google button
+- ✅ `app/(auth)/verify-email/page.tsx` — static landing with mail icon
+- ✅ `app/(auth)/forgot-password/page.tsx` — email form + sent-confirmation state (via `?sent=true`)
+- ✅ `app/(auth)/reset-password/page.tsx` — password + confirm form
+- ✅ `app/(app)/layout.tsx` — skeleton: calls `requireAuth()`, redirects to `/login` if not authenticated
+- ✅ `app/(app)/dashboard/page.tsx` — placeholder: displays user display name + workspace name
+- ✅ `tests/api/auth-callback.test.ts` — 4 tests, all passing
+
+### 2. In plain English (delivered)
+
+The front door of the app is fully built. A new user can sign up with email+password (workspace bootstrapped on verification click), sign in with Google (workspace bootstrapped on callback), request a password reset, and set a new password. All auth actions are rate-limited and Zod-validated server-side. The callback route handles both OAuth and email-verification flows, detects first sign-in via workspace membership lookup, and guards against open-redirect attacks. Authenticated users land on a placeholder dashboard that shows their name and workspace — the full shell arrives in 1.3. Visiting any `/(app)/*` route while signed out redirects to `/login`.
+
+### 3. Done-when verification
+
+- ⚠️ Email signup → verify → callback → workspace bootstrapped → /dashboard — **requires live Supabase; structural code verified, manual test deferred**
+- ⚠️ Google signup → callback → workspace bootstrapped → /dashboard — **same — manual only**
+- ⚠️ Same-email merge — **manual only**
+- ⚠️ Rate limit triggers — **Upstash live; structural code verified, manual test deferred**
+- ✅ Visiting `/dashboard` while signed out → middleware redirects to `/login`
+- ✅ Visiting `/login`, `/signup`, `/forgot-password`, `/verify-email` while signed in → middleware redirects to `/dashboard`
+- ✅ All auth-callback tests pass — 10/10
+- ✅ `npm run test:coverage` ≥ 70% — Stmts 86.66%, Branches 78.18%, Functions 85.71%, Lines 86.30%
+- ✅ `npm run type-check` — zero errors
+- ✅ `npm run build` — zero errors, zero warnings
+
+### 4. Test files added/changed
+
+- `tests/api/auth-callback.test.ts` (new, 10 cases — happy paths, bootstrap, error redirects, provider error, ?next honored, open-redirect rejected via `//` and `/\\`)
+- `tests/api/auth-actions.test.ts` (new, 13 cases — rate-limit, validation, generic Supabase errors, success redirects, ip+email composite rate-limit key)
+- `tests/lib/validation/auth.test.ts` (new, 13 cases — login, signup, forgot, reset schemas)
+- `tests/lib/workspace.test.ts` (+1 case — empty-email bootstrap fallback)
+
+### 5. New DECISIONS.md entries
+
+(none — no new architectural decisions this checkpoint beyond what's documented in the phase file)
+
+### 6. Deferred items
+
+- **Manual auth verification** (email flow, Google flow, same-email merge, rate-limit trigger) — requires running `npm run dev` with a real Supabase project. Target: beginning of Checkpoint 1.3 session, after user confirms commit.
+
+### 7. Known issues
+
+- `GoogleAuthButton` has 0% test coverage (client component, browser-only `signInWithOAuth` + `window.location`). Coverage thresholds still pass comfortably; component is simple enough for manual-only verification.
+
+### 8. What surprised me
+
+`vi.fn().mockResolvedValue(mockSupabase)` inside a `vi.mock` factory fails with "cannot access before initialization" — the factory is hoisted before imports, so calling `.mockResolvedValue()` eagerly with an imported value errors. The fix is a lazy reference: `createClient: async () => mockSupabase` (the value is only accessed when the returned function is called, by which time the import is resolved). Also needed `vi.hoisted()` for any `vi.fn()` instances referenced in factory closures.
+
+### 9. Post-audit hardening pass (same session)
+
+After initial completion, audited the work against the spec, security checklist, and common Next.js gotchas. Fixed **13 issues** before clearing context:
+
+**Security**
+- **Open-redirect bypass** in callback: `next.startsWith("/")` accepted `//evil.com` (protocol-relative) and `/\evil.com` (Chrome backslash normalization). Replaced with `isSafeRedirect()` that rejects both. Covered by 2 new tests.
+- **Provider OAuth errors** (e.g. `?error=access_denied`) now surface to `/login?error=...` instead of being swallowed as "missing_code".
+
+**UX correctness**
+- **Login page** now reads `?error=` from the callback and shows mapped messages (`auth_failed`, `missing_code`, `workspace_failed`, `access_denied`). Action-state errors take precedence over URL errors.
+- **Reset-password** is now a Server Component that calls `getUser()` and redirects to `/forgot-password?error=link_expired` if no session — prevents the "Could not update password" generic error when a user visits directly.
+- **Middleware** now redirects signed-in users away from `/login`, `/signup`, `/forgot-password`, and `/verify-email` to `/dashboard`. `/reset-password` is intentionally excluded (recovery flow needs the active session).
+- **GoogleAuthButton** resets `loading=false` and shows a toast on Supabase OAuth error instead of leaving the button stuck.
+
+**Defensive coding**
+- **`bootstrapWorkspace`** now derives `name = "My Workspace"` and `slug = "workspace-xxxxx"` when the email's local part is empty (rare OAuth case).
+
+**Testing**
+- `tests/api/auth-actions.test.ts` — 13 new cases covering rate-limit short-circuit, validation, Supabase error paths, success redirects, and the ip+email composite rate-limit key.
+- `tests/lib/validation/auth.test.ts` — 13 new cases for all four Zod schemas.
+- `tests/api/auth-callback.test.ts` — extended from 4 to 10 cases: missing-code redirect, provider-error redirect, `?next` honored, open-redirect rejected via both `//` and `/\\`, bootstrap-failure redirect.
+- `tests/lib/workspace.test.ts` — +1 case for the empty-email fallback.
+
+**Cleanup**
+- Removed `app/api/sentry-example-api/` and `app/sentry-example-page/` (Sentry wizard examples — verified working in 1.1, no longer needed).
+- Cleaned up `as any` cast in callback test using `as unknown as NextRequest`.
+
+**Final counts after hardening:** 81 tests (up from 48), all 4 end-of-session checks pass.
+
+---
 
 ## Checkpoint 1.1 closeout — 2026-05-28
 

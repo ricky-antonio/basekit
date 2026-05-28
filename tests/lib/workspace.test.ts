@@ -140,4 +140,18 @@ describe("bootstrapWorkspace", () => {
       }),
     )
   })
+
+  it("falls back to 'My Workspace' when email is empty", async () => {
+    const newId = "ws-new-003"
+    mockSupabaseRpc("bootstrap_workspace", { data: newId, error: null })
+    await bootstrapWorkspace(fakeUser.id, "")
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      "bootstrap_workspace",
+      expect.objectContaining({
+        p_user_id: fakeUser.id,
+        p_name: "My Workspace",
+        p_slug: expect.stringMatching(/^workspace-/),
+      }),
+    )
+  })
 })

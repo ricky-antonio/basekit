@@ -40,8 +40,23 @@ export async function updateSession(request: NextRequest) {
     url.pathname.startsWith("/settings") ||
     url.pathname.startsWith("/admin")
 
+  // Auth pages that signed-in users should be bounced from. /reset-password
+  // is intentionally excluded — the password-recovery flow lands there with
+  // an active session.
+  const isAuthOnlyRoute =
+    url.pathname === "/login" ||
+    url.pathname === "/signup" ||
+    url.pathname === "/forgot-password" ||
+    url.pathname === "/verify-email"
+
   if (!user && isProtectedRoute) {
     url.pathname = "/login"
+    return NextResponse.redirect(url)
+  }
+
+  if (user && isAuthOnlyRoute) {
+    url.pathname = "/dashboard"
+    url.search = ""
     return NextResponse.redirect(url)
   }
 
