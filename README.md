@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# basekit
 
-## Getting Started
+**The foundation every SaaS needs to ship.**
 
-First, run the development server:
+A production-ready SaaS starter — auth, subscription billing, teams, admin, and transactional email all wired together end-to-end. Sign up, hit a plan limit, upgrade through Stripe, invite a teammate, cancel — the full billing lifecycle works.
+
+**Status:** Phase 1 — Foundation + Auth + Workspaces (in progress)
+**Live URL:** _(local only — not yet deployed)_
+
+---
+
+## Stack
+- Next.js 15 (App Router · Server Components · Server Actions)
+- TypeScript 5 (strict)
+- Tailwind 4 + shadcn/ui + next-themes
+- Supabase (Postgres + Auth + Storage)
+- Stripe (Checkout + Customer Portal + Webhooks)
+- Resend + React Email
+- Upstash Ratelimit + Redis
+- Zod · Sentry · Tabler Icons · react-hot-toast
+- Vitest + React Testing Library
+
+---
+
+## Quick start
 
 ```bash
+# 1. install
+npm install
+
+# 2. set up env
+cp .env.example .env.local
+# fill in values — see .claude/setup.md for where each comes from
+
+# 3. run
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# in a second terminal:
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Full setup** (Supabase project, Stripe products, Resend domain, Upstash database, Google OAuth, Sentry — every credential, every verification curl):
+👉 [`.claude/setup.md`](.claude/setup.md)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project map
 
-## Learn More
+| Need | Where to look |
+|------|---------------|
+| Project goals & scope | [`CLAUDE.md`](CLAUDE.md) |
+| Architectural decisions + rationale | [`DECISIONS.md`](DECISIONS.md) |
+| What's done, in progress, next | [`PROGRESS.md`](PROGRESS.md) |
+| Current sprint | [`.claude/phases/`](.claude/phases/) |
+| DB schema & RLS | [`.claude/schema.md`](.claude/schema.md) |
+| Design system | [`.claude/design.md`](.claude/design.md) |
+| Code rules | [`.claude/rules/code.md`](.claude/rules/code.md) |
+| Test rules | [`.claude/rules/testing.md`](.claude/rules/testing.md) |
+| Security rules | [`.claude/rules/security.md`](.claude/rules/security.md) |
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scripts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run dev             # local dev server (http://localhost:3000)
+npm run build           # production build
+npm run start           # serve production build
+npm run lint            # eslint
+npm run type-check      # tsc --noEmit, zero errors required to commit
+npm test                # vitest run
+npm run test:watch      # vitest watch mode
+npm run test:coverage   # vitest with v8 coverage report
+npm run email           # react-email preview server on :3001
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Definition of done (every session)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All four must pass before commit:
+
+```bash
+npm run type-check
+npm test
+npm run test:coverage   # at or above current phase threshold
+npm run build
+```
+
+Update `PROGRESS.md` before closing the session.
+
+---
+
+## License
+
+MIT — see [`LICENSE`](LICENSE) (TBA).

@@ -1,41 +1,94 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# Builds
+.next/
+out/
+build/
+dist/
 
-# testing
-/coverage
+# Test output
+coverage/
+.vitest/
+*.lcov
 
-# next.js
-/.next/
-/out/
+# Environment — NEVER commit real values
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+*.local
+!.env.example
 
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
+pnpm-debug.log*
+.npm
+.eslintcache
 
-# env files (can opt-in for committing if needed)
-.env*
+# IDE — keep VSCode shared config, ignore personal
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.fleet/
+*.swp
+*.swo
+*~
 
-# vercel
-.vercel
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+ehthumbs.db
 
-# typescript
+# TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Generated types (regenerate from supabase CLI; do not commit)
+# lib/database.types.ts          # uncomment if you decide not to commit generated types
+
+# Vercel
+.vercel
+
+# Sentry source maps
+.sentryclirc
+
+# React Email build output
+.react-email/
+
+# macOS Spotlight / Time Machine
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+
+# Local Supabase CLI artefacts
+supabase/.branches/
+supabase/.temp/
+supabase/seed.sql.backup
+
+# Stripe CLI cache
+.stripe/
+
+# Misc
+.cache/
+.parcel-cache/
+*.tgz
+.yarn-integrity
+
+# Claude Code — local-only session settings
+.claude/settings.local.json
+
+# Personal methodology / workflow files (not part of the project)
+new-project-scaffold.md
+startup-prompt.md
