@@ -179,6 +179,27 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 
 ---
 
+## Column-level grants to prevent profile role escalation
+**Decision:** Revoke broad UPDATE on `profiles` from `authenticated` and re-grant only `(display_name, avatar_url)`. Role changes go through service-role server actions exclusively.
+**Why:** The `profiles_update_own` RLS policy is `USING (id = auth.uid())` — it restricts WHICH rows a user can update but not WHICH columns. Without column-level grants, a regular authenticated user could `update profiles set role = 'admin' where id = me` from the Supabase client and grant themselves admin. Found during the Phase 1.1 RLS audit. Column-level grants are the standard PostgreSQL pattern for "you can edit your row, but not these columns."
+**Alternatives rejected:**
+- `WITH CHECK (id = auth.uid() AND role = (select role from profiles where id = auth.uid()))` — works but reads as "compare role to itself," creates a self-query that's another recursion risk surface, and needs a helper.
+- A trigger that rejects role changes by non-superusers — adds runtime overhead and is hidden behavior; column grants are declarative and visible in `\dp`.
+- Move `role` to `auth.users.raw_app_meta_data` — couples role to JWT lifecycle (role changes require token refresh) and is a Supabase-internal pattern we'd have to maintain.
+**Date:** 2026-05-28
+
+---
+
+## `is_workspace_owner_or_admin` helper for cross-table membership checks
+**Decision:** Five policies that previously inlined `EXISTS (SELECT 1 FROM workspace_members WHERE ... AND role IN ('owner', 'admin'))` now call `is_workspace_owner_or_admin(workspace_id, user_id)` — a SECURITY DEFINER helper that bypasses RLS for the lookup. Applies to `members_update_owner_or_admin`, `members_delete_owner_or_admin`, `invitations_insert_owner_or_admin`, `invitations_delete_owner_or_admin`, `projects_delete_owner_or_admin`.
+**Why:** The inlined `select 1 from workspace_members ...` queries triggered the SELECT policy on `workspace_members`, which itself uses `get_user_workspace_ids` (SECURITY DEFINER). So they worked — but only because of the helper one level down. If anyone modified `members_select_same_workspace` to inline the membership check, all 5 callers would recurse. Routing through a dedicated helper makes the protection explicit and removes the implicit dependency on another policy's implementation. Also slightly faster — one fewer round of policy evaluation per row.
+**Alternatives rejected:**
+- Keep the inlined exists clauses — works today but fragile to future policy edits.
+- Inline `is_workspace_owner_or_admin`'s body into each policy — duplicates logic 5 times; one source of truth is cheaper to maintain.
+**Date:** 2026-05-28
+
+---
+
 ## Explicit table grants for SQL-Editor-created tables
 **Decision:** `combined.sql` ends with `GRANT USAGE ON SCHEMA public TO authenticated; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated; GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;`
 **Why:** Tables created via the Supabase Dashboard's Table Editor automatically get the right grants for the `authenticated` and `anon` roles via Supabase's UI tooling. Tables created via raw SQL in the SQL Editor do NOT — the SQL Editor runs as `postgres` and grants are not applied automatically. Without these grants, even a correctly-RLS-policied query fails with `42501: permission denied for table workspaces`. We hit this during Checkpoint 1.1 RLS verification. RLS still acts as the row filter — the grant is just the table-level privilege check that happens before RLS even runs.

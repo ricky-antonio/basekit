@@ -245,6 +245,19 @@ set search_path = public as $$
   select exists (select 1 from profiles where id = p_user_id and role = 'admin');
 $$;
 
+-- Returns true if the given user is owner or admin of the given workspace
+-- (avoids policies on other tables querying workspace_members directly)
+create or replace function is_workspace_owner_or_admin(p_workspace_id uuid, p_user_id uuid)
+returns boolean language sql security definer
+set search_path = public as $$
+  select exists (
+    select 1 from workspace_members
+    where workspace_id = p_workspace_id
+      and user_id = p_user_id
+      and role in ('owner', 'admin')
+  );
+$$;
+
 -- ============================================================
 -- RLS POLICIES — all tables exist by this point
 -- ============================================================
@@ -282,22 +295,12 @@ create policy members_select_same_workspace on workspace_members
 
 create policy members_update_owner_or_admin on workspace_members
   for update using (
-    exists (
-      select 1 from workspace_members wm
-      where wm.workspace_id = workspace_members.workspace_id
-        and wm.user_id = auth.uid()
-        and wm.role in ('owner', 'admin')
-    )
+    is_workspace_owner_or_admin(workspace_members.workspace_id, auth.uid())
   );
 
 create policy members_delete_owner_or_admin on workspace_members
   for delete using (
-    exists (
-      select 1 from workspace_members wm
-      where wm.workspace_id = workspace_members.workspace_id
-        and wm.user_id = auth.uid()
-        and wm.role in ('owner', 'admin')
-    )
+    is_workspace_owner_or_admin(workspace_members.workspace_id, auth.uid())
   );
 
 -- invitations
@@ -308,22 +311,12 @@ create policy invitations_select_workspace on invitations
 
 create policy invitations_insert_owner_or_admin on invitations
   for insert with check (
-    exists (
-      select 1 from workspace_members wm
-      where wm.workspace_id = invitations.workspace_id
-        and wm.user_id = auth.uid()
-        and wm.role in ('owner', 'admin')
-    )
+    is_workspace_owner_or_admin(invitations.workspace_id, auth.uid())
   );
 
 create policy invitations_delete_owner_or_admin on invitations
   for delete using (
-    exists (
-      select 1 from workspace_members wm
-      where wm.workspace_id = invitations.workspace_id
-        and wm.user_id = auth.uid()
-        and wm.role in ('owner', 'admin')
-    )
+    is_workspace_owner_or_admin(invitations.workspace_id, auth.uid())
   );
 
 -- subscriptions
@@ -359,12 +352,7 @@ create policy projects_update_members on projects
 
 create policy projects_delete_owner_or_admin on projects
   for delete using (
-    exists (
-      select 1 from workspace_members wm
-      where wm.workspace_id = projects.workspace_id
-        and wm.user_id = auth.uid()
-        and wm.role in ('owner', 'admin')
-    )
+    is_workspace_owner_or_admin(projects.workspace_id, auth.uid())
   );
 
 -- activity_log
@@ -377,6 +365,12 @@ create policy activity_select_admin on activity_log
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on all tables in schema public to authenticated;
 grant execute on all functions in schema public to authenticated;
+
+-- Prevent privilege escalation: revoke broad UPDATE on profiles and re-grant only
+-- the user-mutable columns. Authenticated users cannot change their own role this way.
+-- Admin role changes must go through a service-role server action.
+revoke update on profiles from authenticated;
+grant update (display_name, avatar_url) on profiles to authenticated;
 
 -- ============================================================
 -- STORAGE: avatars bucket + policies
@@ -401,10 +395,15 @@ create policy avatars_insert_own on storage.objects
     and auth.uid()::text = (string_to_array(name, '/'))[1]
   );
 
--- Authenticated users can update their own avatar file
+-- Authenticated users can update their own avatar file.
+-- WITH CHECK prevents renaming/moving the file into another user's folder.
 drop policy if exists avatars_update_own on storage.objects;
 create policy avatars_update_own on storage.objects
   for update using (
+    bucket_id = 'avatars'
+    and auth.uid()::text = (string_to_array(name, '/'))[1]
+  )
+  with check (
     bucket_id = 'avatars'
     and auth.uid()::text = (string_to_array(name, '/'))[1]
   );

@@ -342,6 +342,10 @@ export type Database = {
         Returns: undefined
       }
       is_admin: { Args: { p_user_id: string }; Returns: boolean }
+      is_workspace_owner_or_admin: {
+        Args: { p_user_id: string; p_workspace_id: string }
+        Returns: boolean
+      }
       pgp_armor_headers: {
         Args: { "": string }
         Returns: Record<string, unknown>[]
