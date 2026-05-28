@@ -167,3 +167,24 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 **Date:** 2026-05-27
 
 ---
+
+## SECURITY DEFINER helper functions to break recursive RLS
+**Decision:** RLS policies that need to query their own table (e.g. `workspace_members` checking membership) or that traverse the same table they protect (e.g. `profiles` admin check reading `profiles.role`) call a `SECURITY DEFINER` function instead of inlining the subquery. Two helpers live alongside the policies: `get_user_workspace_ids(p_user_id uuid)` and `is_admin(p_user_id uuid)`. Both `SET search_path = public` to prevent search-path attacks.
+**Why:** Postgres' RLS evaluator re-applies the policy when a policy's USING clause queries the same table, producing `42P17: infinite recursion detected in policy`. We hit this during the Checkpoint 1.1 RLS verification: `members_select_same_workspace` queried `workspace_members` to check membership, and `profiles_select_admin` queried `profiles` to check role. SECURITY DEFINER bypasses RLS for the inner lookup (the function runs as the function's owner, postgres), so the membership/admin check happens once and the result is fed back into the policy.
+**Alternatives rejected:**
+- Store `is_admin` as a column on `auth.users.raw_app_meta_data` and read via `auth.jwt()` — couples role to JWT lifecycle (role changes require token refresh) and pushes a Supabase-internal pattern we'd have to maintain.
+- Drop the cross-table policies and enforce in app code — defeats the purpose of RLS as the authorization layer (`code.md` rule: "RLS is the authorization layer").
+- Use Postgres views with `security_invoker = false` — works but adds another abstraction layer to maintain; the function approach is the Supabase-recommended pattern for exactly this case.
+**Date:** 2026-05-28
+
+---
+
+## Explicit table grants for SQL-Editor-created tables
+**Decision:** `combined.sql` ends with `GRANT USAGE ON SCHEMA public TO authenticated; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated; GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;`
+**Why:** Tables created via the Supabase Dashboard's Table Editor automatically get the right grants for the `authenticated` and `anon` roles via Supabase's UI tooling. Tables created via raw SQL in the SQL Editor do NOT — the SQL Editor runs as `postgres` and grants are not applied automatically. Without these grants, even a correctly-RLS-policied query fails with `42501: permission denied for table workspaces`. We hit this during Checkpoint 1.1 RLS verification. RLS still acts as the row filter — the grant is just the table-level privilege check that happens before RLS even runs.
+**Alternatives rejected:**
+- Create tables via the Supabase Dashboard UI — loses version control, can't be replayed in CI or on a fresh project.
+- Use the Supabase CLI (`supabase db push`) which does apply correct grants — requires the user to set up local Supabase tooling for what is otherwise a copy-paste SQL Editor flow. Add as an option later when we ship Supabase migrations as a directory rather than `combined.sql`.
+**Date:** 2026-05-28
+
+---

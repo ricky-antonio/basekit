@@ -377,3 +377,47 @@ create policy activity_select_admin on activity_log
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on all tables in schema public to authenticated;
 grant execute on all functions in schema public to authenticated;
+
+-- ============================================================
+-- STORAGE: avatars bucket + policies
+-- ============================================================
+
+-- Create the avatars bucket (public read, 2 MB cap, images only)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'avatars',
+  'avatars',
+  true,
+  2097152,
+  array['image/png', 'image/jpeg', 'image/webp']
+)
+on conflict (id) do nothing;
+
+-- Authenticated users can upload to a path prefixed with their user ID (<uid>/...)
+drop policy if exists avatars_insert_own on storage.objects;
+create policy avatars_insert_own on storage.objects
+  for insert with check (
+    bucket_id = 'avatars'
+    and auth.uid()::text = (string_to_array(name, '/'))[1]
+  );
+
+-- Authenticated users can update their own avatar file
+drop policy if exists avatars_update_own on storage.objects;
+create policy avatars_update_own on storage.objects
+  for update using (
+    bucket_id = 'avatars'
+    and auth.uid()::text = (string_to_array(name, '/'))[1]
+  );
+
+-- Authenticated users can delete their own avatar file
+drop policy if exists avatars_delete_own on storage.objects;
+create policy avatars_delete_own on storage.objects
+  for delete using (
+    bucket_id = 'avatars'
+    and auth.uid()::text = (string_to_array(name, '/'))[1]
+  );
+
+-- Anyone (including anon) can read avatars — bucket is public, this policy documents intent
+drop policy if exists avatars_select_public on storage.objects;
+create policy avatars_select_public on storage.objects
+  for select using (bucket_id = 'avatars');

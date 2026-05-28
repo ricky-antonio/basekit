@@ -23,10 +23,29 @@ function deriveSlug(email: string): string {
 export async function getWorkspace(user: User): Promise<ApiResult<Workspace>> {
   const supabase = await createClient()
 
+  // Resolve the user's first workspace via membership (owners AND invited members)
+  const { data: membership, error: membershipError } = await supabase
+    .from("workspace_members")
+    .select("workspace_id")
+    .eq("user_id", user.id)
+    .order("joined_at", { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (membershipError || !membership) {
+    return {
+      ok: false,
+      error: {
+        error: "Workspace not found.",
+        code: "NOT_FOUND",
+      },
+    }
+  }
+
   const { data, error } = await supabase
     .from("workspaces")
     .select("id, name, slug, owner_id, created_at")
-    .eq("owner_id", user.id)
+    .eq("id", membership.workspace_id)
     .single()
 
   if (error || !data) {

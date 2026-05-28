@@ -336,10 +336,12 @@ export type Database = {
       }
       gen_random_uuid: { Args: never; Returns: string }
       gen_salt: { Args: { "": string }; Returns: string }
+      get_user_workspace_ids: { Args: { p_user_id: string }; Returns: string[] }
       increment_usage: {
         Args: { p_resource: string; p_workspace_id: string }
         Returns: undefined
       }
+      is_admin: { Args: { p_user_id: string }; Returns: boolean }
       pgp_armor_headers: {
         Args: { "": string }
         Returns: Record<string, unknown>[]

@@ -42,7 +42,11 @@ beforeEach(() => {
 })
 
 describe("getWorkspace", () => {
-  it("returns the user's single workspace", async () => {
+  it("returns the user's workspace resolved via workspace_members", async () => {
+    mockSupabaseFrom("workspace_members", {
+      data: { workspace_id: fakeWorkspace.id },
+      error: null,
+    })
     mockSupabaseFrom("workspaces", { data: fakeWorkspace, error: null })
     const result = await getWorkspace(fakeUser)
     expect(result.ok).toBe(true)
@@ -50,9 +54,41 @@ describe("getWorkspace", () => {
       expect(result.data.id).toBe(fakeWorkspace.id)
       expect(result.data.slug).toBe(fakeWorkspace.slug)
     }
+    expect(mockSupabase.from).toHaveBeenCalledWith("workspace_members")
+    expect(mockSupabase.from).toHaveBeenCalledWith("workspaces")
   })
 
-  it("returns ok=false when user has no workspace yet", async () => {
+  it("resolves a workspace where the user is an invited member, not the owner", async () => {
+    const otherOwnerWorkspace = { ...fakeWorkspace, owner_id: "other-owner-id" }
+    mockSupabaseFrom("workspace_members", {
+      data: { workspace_id: otherOwnerWorkspace.id },
+      error: null,
+    })
+    mockSupabaseFrom("workspaces", { data: otherOwnerWorkspace, error: null })
+    const result = await getWorkspace(fakeUser)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.owner_id).toBe("other-owner-id")
+    }
+  })
+
+  it("returns ok=false when user has no membership yet", async () => {
+    mockSupabaseFrom("workspace_members", {
+      data: null,
+      error: null,
+    })
+    const result = await getWorkspace(fakeUser)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe("NOT_FOUND")
+    }
+  })
+
+  it("returns ok=false when workspace row is missing despite membership", async () => {
+    mockSupabaseFrom("workspace_members", {
+      data: { workspace_id: fakeWorkspace.id },
+      error: null,
+    })
     mockSupabaseFrom("workspaces", {
       data: null,
       error: { message: "No rows found" },

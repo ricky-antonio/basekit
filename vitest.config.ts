@@ -21,7 +21,9 @@ export default defineConfig({
         "lib/supabase/server.ts",
         "lib/supabase/middleware.ts",
         "lib/utils.ts",
+        "lib/database.types.ts",
         "components/ui/**",
+        "app/api/sentry-example-api/**",
       ],
       thresholds: {
         lines: 70,
