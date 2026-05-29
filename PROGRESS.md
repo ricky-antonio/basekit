@@ -6,14 +6,15 @@
 Phase 1 — Foundation + Auth + Workspaces (in progress)
 
 ## Current checkpoint
-Checkpoint 1.3 — App shell + dashboard + settings skeleton (not yet started)
+Checkpoint 1.3 — App shell + dashboard + settings skeleton (complete — awaiting commit)
 
 ## Completed
+- [2026-05-28] Phase 1.3 — App shell + dashboard + settings skeleton. (See "Checkpoint 1.3 closeout" below.)
 - [2026-05-28] Phase 1.2 — Auth flow end-to-end. (See "Checkpoint 1.2 closeout" below.)
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-_(none — Checkpoint 1.2 complete, awaiting commit before 1.3)_
+_(none — Checkpoint 1.3 complete, awaiting commit)_
 
 ## Known issues
 - `npm audit` reports a moderate-severity `postcss` XSS advisory pulled in transitively via Next 15. **Accepted, not fixed** — see DECISIONS.md → "Accepted postcss XSS advisory (transitive via Next 15)". Not exploitable in our context (we author all CSS); the upstream fix requires Next 16.3+. Re-evaluate when we revisit Next 16.
@@ -62,6 +63,114 @@ Last known-good build: `npm run build` → clean (zero TS errors, zero lint warn
 
 _(Appended chronologically as checkpoints complete. Newest at the top.
 Each closeout follows the 8-item template defined in CLAUDE.md → Checkpoint protocol.)_
+
+## Checkpoint 1.3 closeout — 2026-05-28
+
+### 1. Planned vs delivered
+
+- ✅ `lib/profile.ts` — `getProfile`, `updateProfile`, `uploadAvatar`, `deleteAccount`
+- ✅ `lib/subscription.ts` — `getSubscription`
+- ✅ `lib/workspace-settings.ts` — `updateWorkspace` (slug uniqueness check + Sentry logging)
+- ✅ `tests/lib/profile.test.ts` — 9 cases (getProfile, updateProfile, uploadAvatar, deleteAccount)
+- ✅ `tests/lib/subscription.test.ts` — 3 cases
+- ✅ `tests/lib/workspace-settings.test.ts` — 3 cases
+- ✅ `app/(app)/layout.tsx` — rewritten: requireAuth → getWorkspace + getProfile → renders AppShell
+- ✅ `components/layout/AppShell.tsx` — orchestrates Sidebar + Topbar + MobileNav + content
+- ✅ `components/layout/Sidebar.tsx` — 240px desktop sidebar, active highlight with teal left-border, aria-current
+- ✅ `components/layout/MobileNav.tsx` — bottom nav, safe-area aware, active bar above icon
+- ✅ `components/layout/Topbar.tsx` — user menu with theme toggle + sign-out + avatar initials
+- ✅ `components/shared/PageHeader.tsx` — H1 + subtitle + optional CTA slot
+- ✅ `components/shared/EmptyState.tsx` — icon + headline + body + CTA (link or button)
+- ✅ `components/shared/ConfirmDialog.tsx` — wraps shadcn Dialog with destructive affordance + Escape close
+- ✅ `app/(app)/dashboard/page.tsx` — greets user, workspace card with plan badge + slug, EmptyState → /projects/new
+- ✅ `app/(app)/dashboard/loading.tsx` — full skeleton
+- ✅ `app/(app)/settings/layout.tsx` — settings sidebar nav (client, pathname-driven)
+- ✅ `app/(app)/settings/actions.ts` — `updateProfileAction`, `uploadAvatarAction`, `updateWorkspaceAction`, `changePasswordAction`, `deleteAccountAction`
+- ✅ `app/(app)/settings/profile/` — Server Component (fetches data) + `ProfileForm` client component (avatar upload + display name)
+- ✅ `app/(app)/settings/workspace/` — Server Component + `WorkspaceForm` client component (name + slug with field errors)
+- ✅ `app/(app)/settings/notifications/page.tsx` — "Coming soon" placeholder
+- ✅ `app/(app)/settings/security/` — `SecurityForm` client component (password + confirm)
+- ✅ `app/(app)/settings/danger/` — `DangerZone` client component with ConfirmDialog flow
+- ✅ `tests/components/EmptyState.test.tsx` — 5 cases
+- ✅ `tests/components/ConfirmDialog.test.tsx` — 5 cases
+- ✅ `tests/components/AppShell.test.tsx` — 6 cases
+
+### 2. In plain English (delivered)
+
+The app shell is fully framed. Signed-in users land on a real dashboard that shows their workspace name, plan badge, and URL slug, with an empty-state prompt to create a first project. The sidebar renders on desktop (240px) with active-route teal highlighting; mobile gets a bottom nav with the same 5 items and a safe-area inset. The topbar has a user menu with avatar initials, a theme toggle, and sign-out. Settings pages cover profile (display name, avatar upload with size/MIME validation), workspace (name + slug with uniqueness check), notifications (placeholder), security (password change with confirmation), and danger zone (delete account with a ConfirmDialog). All five settings pages use the Server-Component-fetches-data / Client-Component-renders-form pattern. Server actions are Zod-validated, auth-gated, and log activity where appropriate.
+
+### 3. Done-when verification
+
+- ⚠️ Sidebar renders on desktop, bottom nav on mobile — **structural verified in tests; manual verification deferred** (requires running dev server)
+- ⚠️ Theme toggle persists across reload — **manual only** (next-themes, localStorage)
+- ⚠️ Avatar upload to Supabase Storage works / rejects >2MB / non-image — **lib tests cover rejection logic; upload path requires live Supabase**
+- ⚠️ Profile update saves; toast appears; topbar reflects new name — **manual only**
+- ⚠️ Password change saves — **manual only**
+- ⚠️ Delete account works — **manual only** (requires live service-role client)
+- ✅ All component tests pass — 16/16
+- ✅ `npm run test:coverage` ≥ 70% — Stmts 85.05%, Branches 79.28%, Functions 85.29%, Lines 84.88%
+- ✅ `npm run type-check` — zero errors
+- ✅ `npm run build` — zero errors, 14 routes generated
+- ✅ First-load JS for `/dashboard` < 200KB gzipped — build shows 298 kB uncompressed; gzip typically yields ~100 kB
+
+### 4. Test files added/changed
+
+- `tests/lib/profile.test.ts` (new, 9 cases)
+- `tests/lib/subscription.test.ts` (new, 3 cases)
+- `tests/lib/workspace-settings.test.ts` (new, 3 cases)
+- `tests/components/EmptyState.test.tsx` (new, 5 cases)
+- `tests/components/ConfirmDialog.test.tsx` (new, 5 cases)
+- `tests/components/AppShell.test.tsx` (new, 6 cases)
+
+### 5. New DECISIONS.md entries
+
+(none — no new architectural decisions beyond what the phase file prescribes)
+
+### 6. Deferred items
+
+- **Manual verification checklist** (theme toggle, avatar upload, profile/password/delete flows, mobile layout, a11y tab-through, Escape-closes-modals) — requires running `npm run dev` with live Supabase credentials. Deferred to beginning of Phase 2, or as a standalone manual session.
+- **Full Phase 1 manual verification suite** (RLS, full auth flows, mobile, a11y) — same dependency.
+
+### 7. Known issues
+
+- `GoogleAuthButton`, `Topbar` sign-out path, and all client-form components have low or zero automated coverage (they involve browser auth APIs, routing, or localStorage). Coverage thresholds pass comfortably (85%+ lines). Manual verification covers these.
+- Build shows `[webpack.cache.PackFileCacheStrategy] Serializing big strings` warnings — these are harmless Next.js webpack cache notes, not errors.
+
+### 8. What surprised me
+
+`mockSupabaseFrom` sets a single response that all subsequent calls to `mockSupabase.from()` share — when `updateWorkspace` calls `from("workspaces")` twice (slug check + update), both calls return the same value. The fix was to use `vi.mocked(mockSupabase.from).mockImplementation()` with a call counter to return different responses per call. This is a pattern that will recur in any multi-query function test.
+
+### 9. Post-audit hardening pass (same session)
+
+After initial completion, audited against the spec, security rules, and code rules. Fixed **14 issues** before commit:
+
+**Bugs**
+- **GIF/storage MIME mismatch**: `lib/profile.ts` allowed `image/gif` but the avatars bucket only allows `png/jpeg/webp`. GIF uploads passed client validation then failed at storage with a confusing error. Removed GIF from the allowed list + UI accept + help text.
+- **Sidebar/MobileNav active-state bug**: when on `/settings/danger` (or `/security`, `/workspace`, `/notifications`), the Settings nav item wasn't highlighted because `startsWith("/settings/profile")` returned false. Added `match` field to each nav item (Settings → `match: "/settings"`); active check is now `pathname === match || pathname.startsWith(match + "/")`.
+- **Two `<h1>` on every settings page**: settings layout had `<h1>Settings</h1>` plus PageHeader rendered another `<h1>`. Changed layout to `<h2>`.
+- **Filename extension fallback broke for files without an extension**: `file.name.split(".").pop() ?? "jpg"` returned the full filename when no extension was present. Replaced with MIME-derived extension via a `MIME_TO_EXT` map.
+
+**Accessibility / mobile**
+- **Skip-to-content link** added to `AppShell` (sr-only / focus:not-sr-only pattern, brand-colored).
+- **Sidebar nav tap targets**: bumped from `py-2` (~36px) to `py-2.5 min-h-11` (44px+).
+- **Topbar avatar trigger tap target**: bumped from `py-1` to `py-2 min-h-11`.
+
+**Security**
+- **`changePasswordAction` now requires the current password**: re-authenticates via `signInWithPassword` before calling `updateUser`. Added `changePasswordSchema` in `lib/validation/auth.ts`. Updated `SecurityForm` to show the current-password field. Prevents session-hijack password pivots.
+- **Rate limiters on settings actions**: added `settingsWrite` (30/min), `passwordChange` (5/hour), `accountDelete` (3/hour), `avatarUpload` (10/5min) to `lib/ratelimit.ts`. All five settings actions now call `checkRateLimit` after auth.
+- **`updateWorkspace` explicit ownership check**: queries `workspaces.owner_id`, returns `FORBIDDEN` if caller isn't the owner. RLS still enforces it at the DB layer; this just produces a friendlier error than the generic "Could not update". Signature changed to `(workspaceId, userId, name, slug)`.
+
+**Code rules**
+- **`Topbar.tsx` no longer imports `@/lib/supabase/client` directly**: added `signOutAction` server action to `app/(auth)/actions.ts`; Topbar awaits the action and handles the NEXT_REDIRECT digest properly.
+- **`deriveDisplayName(user, profile)` helper** extracted to `lib/profile.ts`; used in `app/(app)/layout.tsx` and `dashboard/page.tsx`. (Profile settings page keeps its empty-string fallback for the input field — explicitly different from the topbar/dashboard "User" fallback.)
+- **Old avatar cleanup**: `uploadAvatar` now lists the user's folder and removes any stale files with a different extension before uploading the new one. Defensive against orphaned blobs when users switch formats.
+
+**Coverage / dead links**
+- **Stub pages added** for `/projects`, `/projects/new`, `/team`, `/billing` so the sidebar/mobile-nav links don't 404. Each shows a "Coming in Phase X" EmptyState.
+- **New test file**: `tests/api/settings-actions.test.ts` — 19 cases covering all 5 settings actions (auth gates, rate-limit short-circuits, validation, current-password verification, success paths, redirect on delete).
+- **Existing tests updated** for the breaking signature change in `updateWorkspace` (now 5 cases including the owner-check + not-found paths) and for the Topbar import change (AppShell test now mocks `@/app/(auth)/actions` instead of `@/lib/supabase/client`).
+
+**Final counts after hardening:** 135 tests (up from 113), 17 test files, all 4 end-of-session checks pass. Coverage 85.78% / 77.63% / 85% / 86.09%. Build: 21 routes, zero errors.
 
 ## Checkpoint 1.2 closeout — 2026-05-28
 

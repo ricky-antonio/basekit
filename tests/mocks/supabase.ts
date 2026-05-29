@@ -101,6 +101,8 @@ export const mockSupabase = {
     from: vi.fn(() => ({
       upload: vi.fn().mockResolvedValue({ data: { path: "test/avatar.png" }, error: null }),
       getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: "https://test.supabase.co/storage/v1/object/public/avatars/test/avatar.png" } }),
+      list: vi.fn().mockResolvedValue({ data: [], error: null }),
+      remove: vi.fn().mockResolvedValue({ data: [], error: null }),
     })),
   },
 }
