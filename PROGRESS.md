@@ -20,6 +20,29 @@ Checkpoint 2.1. Checkpoint 1.3 was already committed (`6b2168c`).
 ## In progress
 - _(none)_ — Phase 1 complete and fully verified. Next: Phase 2 → Checkpoint 2.1 (Stripe lib + webhook + usage enforcement). `/admin` non-admin check is N/A until Phase 4. Resend domain verification still needed before Phase 3 (see Known issues).
 
+## Phase 2 — entry notes (read before Checkpoint 2.1)
+Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-ready, no blockers**: `subscriptions` has all Stripe columns + `updated_at` trigger + `unique(workspace_id)`/`unique(stripe_customer_id)`; `usage` has `unique(workspace_id, resource)` + `count >= 0` with `increment_usage` (upsert) / `decrement_usage` (clamps at 0); `projects` RLS = member insert/select/update + owner/admin-only delete; `stripe_events` = `id`/`type`/`processed_at` (no RLS); `service_role` grants fixed; `usage_select_members` exists so enforcement reads don't fail open. Watch-items:
+
+**Reuse, don't duplicate**
+- Plan derivation already exists: `lib/plans.ts → getPlanFromPriceId` (tested in `tests/lib/plans.test.ts`). Make the planned `getPlanNameFromPriceId` re-export/delegate to it — don't reimplement.
+- Subscription fetch already exists: `lib/subscription.ts → getSubscription(workspaceId)`. Consolidate the planned `getWorkspaceSubscription` with it; `getActivePlan` builds on it with a `'free'` fallback.
+
+**Caching**
+- `revalidateTag("subscription:" + workspaceId)` is a **no-op unless** the subscription/usage reads are wrapped in `unstable_cache({ tags })`. Decide explicitly in 2.1: add the cache wrappers so the tag bites, or drop the `revalidateTag` calls (Server Component reads are already dynamic, so the UI stays fresh either way). Don't ship them believing they invalidate something they don't.
+
+**Stripe lib**
+- `new Stripe(key, { apiVersion })` must match the version the installed `stripe` types pin, or omit `apiVersion` — a mismatched string is a TS error.
+- Webhook subscription upsert: set `onConflict: "workspace_id"` deliberately (`subscriptions` has unique constraints on both `workspace_id` and `stripe_customer_id`).
+
+**Dashboard (defer to 2.2)**
+- `app/(app)/dashboard/page.tsx` hard-codes the "No projects yet" EmptyState and omits the member count the 1.3 spec mentioned. Wire it to real project/usage data when 2.2 builds the projects domain.
+
+**External setup to verify (not code)**
+- 2.1: run `stripe listen --forward-to localhost:3000/api/webhooks/stripe`; set `STRIPE_WEBHOOK_SECRET` to the **dynamic secret `stripe listen` prints** (the dashboard value currently in `.env.local` may differ for local dev).
+- 2.3: configure the **Stripe Customer Portal** (cancel-at-period-end, plan switching) — setup.md §4c.
+
+**At Phase 2 start:** raise `vitest.config.ts` coverage thresholds to **75 / 75 / 70 / 75** (lines/functions/branches/statements) per `.claude/rules/testing.md`.
+
 ## Known issues
 - `npm audit` reports a moderate-severity `postcss` XSS advisory pulled in transitively via Next 15. **Accepted, not fixed** — see DECISIONS.md → "Accepted postcss XSS advisory (transitive via Next 15)". Not exploitable in our context (we author all CSS); the upstream fix requires Next 16.3+. Re-evaluate when we revisit Next 16.
 - **Resend has zero verified domains** — the API key is valid but no domain is verified, so email sends from a custom `FROM_EMAIL` will be rejected; only Resend's sandbox-to-self works. Not a Phase 1 blocker (email lands in Phase 3). Verify a domain (or use the sandbox sender) before Phase 3.1.
