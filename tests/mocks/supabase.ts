@@ -10,6 +10,28 @@ interface MockQueryResult<T> {
 const tableResponses: Map<string, MockQueryResult<unknown>> = new Map()
 const rpcResponses: Map<string, MockQueryResult<unknown>> = new Map()
 
+// Write capture — records every insert/update/upsert/delete so tests can assert
+// on the exact columns/values written (required for webhook handler tests).
+export interface CapturedWrite {
+  table: string
+  op: "insert" | "update" | "upsert" | "delete"
+  payload: unknown
+  options?: unknown
+}
+const writes: CapturedWrite[] = []
+
+export function getSupabaseWrites(): CapturedWrite[] {
+  return writes
+}
+
+export function getLastWrite(table: string, op?: CapturedWrite["op"]): CapturedWrite | undefined {
+  for (let i = writes.length - 1; i >= 0; i--) {
+    const write = writes[i]
+    if (write && write.table === table && (!op || write.op === op)) return write
+  }
+  return undefined
+}
+
 export function mockSupabaseFrom<T>(table: string, result: MockQueryResult<T>) {
   tableResponses.set(table, result as MockQueryResult<unknown>)
 }
@@ -21,18 +43,24 @@ export function mockSupabaseRpc<T>(fnName: string, result: MockQueryResult<T>) {
 export function resetSupabaseMock() {
   tableResponses.clear()
   rpcResponses.clear()
+  writes.length = 0
 }
 
 // Chainable query builder that resolves to the configured response
 function makeQueryBuilder(table: string) {
   const result = tableResponses.get(table) ?? { data: null, error: null }
 
+  const record = (op: CapturedWrite["op"], payload: unknown, options?: unknown) => {
+    writes.push({ table, op, payload, options })
+    return chain
+  }
+
   const chain = {
     select: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    upsert: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
+    insert: vi.fn((payload: unknown) => record("insert", payload)),
+    update: vi.fn((payload: unknown) => record("update", payload)),
+    upsert: vi.fn((payload: unknown, options?: unknown) => record("upsert", payload, options)),
+    delete: vi.fn(() => record("delete", null)),
     eq: vi.fn().mockReturnThis(),
     neq: vi.fn().mockReturnThis(),
     in: vi.fn().mockReturnThis(),

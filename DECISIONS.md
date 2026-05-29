@@ -245,3 +245,42 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 **Date:** 2026-05-29
 
 ---
+
+## Stripe period fields read from `subscription.items.data[0]`, not the subscription
+**Decision:** When mapping a Stripe subscription to our `subscriptions` row, `current_period_start` / `current_period_end` are read from `subscription.items.data[0].current_period_start/end` (per-item), while `cancel_at_period_end` and `trial_end` remain at the subscription top level. The Stripe client pins `apiVersion: "2026-05-27.dahlia"`.
+**Why:** Stripe moved the billing-period fields off the `Subscription` object onto `SubscriptionItem` in recent API versions, and the installed `stripe@22` types for `2026-05-27.dahlia` no longer expose `current_period_*` on the subscription — reading them there is a compile error, and copying old tutorial code would have produced `undefined` periods at runtime. The `apiVersion` is typed as the literal `LatestApiVersion`, so a mismatched string is itself a TS error; pinning the exact pinned value keeps types and runtime aligned.
+**Alternatives rejected:**
+- Read `subscription.current_period_end` (pre-2025 shape) — does not type-check and is `undefined` at runtime on this API version.
+- Omit `apiVersion` and let the SDK default — works, but pinning makes the contract explicit and surfaces a future SDK bump as a deliberate change.
+**Date:** 2026-05-29
+
+---
+
+## Webhook workspace resolution: metadata first, then `stripe_customer_id` lookup
+**Decision:** Every webhook handler resolves its workspace via `resolveWorkspaceId()`: prefer `metadata.workspaceId` (stamped on both the Checkout session and `subscription_data.metadata` at checkout time), and fall back to a DB lookup of `subscriptions` by `stripe_customer_id`. Events that resolve to no workspace are logged + `Sentry.captureMessage`'d and skipped (never thrown) so the endpoint still returns 200.
+**Why:** Subscription/checkout events carry our metadata, but invoice events (`payment_failed` / `payment_succeeded`) do not — they only reference a `customer`. The customer ID is persisted on first checkout (`getOrCreateStripeCustomer`), so a customer-based lookup covers invoice events without metadata. Stamping metadata in two places means subscription events map even before the customer row is queryable. Graceful-skip (vs throw) is required because `stripe trigger` fixtures and unrelated events legitimately have no matching workspace, and a throw would otherwise be Sentry-noise + a 500.
+**Operational note:** `stripe trigger checkout.session.completed` / `invoice.*` create *new* fixtures with no workspace mapping, so they skip by design. To exercise a real DB write from the CLI, add the metadata override (e.g. `--add checkout_session:metadata.workspaceId=<id>`) or drive the events from a real test-mode checkout.
+**Alternatives rejected:**
+- Customer-lookup only — fails for the first subscription event if it arrives before the customer row is persisted.
+- Metadata only — invoice events have no metadata; payment-failed/succeeded would never map.
+**Date:** 2026-05-29
+
+---
+
+## Webhook returns 200 on handler failure and does NOT record the event
+**Decision:** On a genuine handler error (e.g. a DB write fails), the route Sentry-captures and returns 200, and crucially does **not** insert into `stripe_events`. The `stripe_events` row is written only after `handleStripeEvent` succeeds.
+**Why:** Returning non-200 triggers Stripe's retry storm, which the project explicitly avoids (CLAUDE.md key decision). But pairing 200 with "record-after-success" keeps a failed event **replayable** from the Stripe dashboard — because no idempotency row exists, a manual resend reprocesses cleanly. Recording before processing would permanently swallow a failed event (future deliveries would short-circuit as duplicates with no successful write ever having happened).
+**Alternatives rejected:**
+- Record the event before processing — guarantees exactly-once *attempt* but makes a failed event unrecoverable without manual DB surgery.
+- Return 500 on failure — correct for retries in the abstract, but contradicts the no-retry-storm decision and risks Stripe disabling the endpoint after repeated 5xx.
+**Date:** 2026-05-29
+
+---
+
+## Canonical Supabase mock extended with write capture
+**Decision:** `tests/mocks/supabase.ts` now records every `insert`/`update`/`upsert`/`delete` into a module-level registry, exposed via `getLastWrite(table, op?)` and `getSupabaseWrites()`, cleared by `resetSupabaseMock()`. The chainable builder still returns itself, so existing tests are unaffected.
+**Why:** The testing rules require webhook-handler tests to assert "correct table, correct columns, correct values," but the previous mock created a fresh chain per `from()` call, so write-method spies couldn't be inspected after the fact. Extending the single canonical mock (rather than re-declaring an inline builder per test) keeps to the "one canonical mock per service" rule and avoids the inline-mock drift the rules warn against.
+**Alternatives rejected:**
+- Per-test inline builders (the older `captureInsert()` pattern in `activity.test.ts`) — duplicative, drift-prone, and can't model multiple writes to different tables in one handler.
+- Assert only on results/behaviour — insufficient for "assert the exact columns written" required of webhook handlers.
+**Date:** 2026-05-29

@@ -3,22 +3,26 @@
 ---
 
 ## Current phase
-Phase 1 — Foundation + Auth + Workspaces (in progress)
+Phase 2 — Billing + Webhooks + Usage (in progress)
 
 ## Current checkpoint
-Phase 1 verification gate — **FULLY CLOSED**. Every manual-verification item passed
-(incl. live Sentry capture); found + fixed 3 real bugs along the way (service_role
-grants, email callback, avatar upload). Ready to commit, then begin Phase 2
-Checkpoint 2.1. Checkpoint 1.3 was already committed (`6b2168c`).
+Checkpoint 2.1 — Stripe lib + webhook handler + usage enforcement — **code-complete,
+all 4 checks green**. Engine room built: Stripe client, billing/customer helpers,
+usage enforcement (fail-open), the full webhook event handler + signature-verified
+idempotent route, and Zod schemas. 206 tests pass; coverage 85.6/75.08/89.65/88.65
+(> Phase 2 thresholds 75/70/75/75). **Manual `stripe listen` / live-DB verification
+still pending** (see Deferred in the 2.1 closeout). Next: Checkpoint 2.2 (projects
+domain end-to-end) — after the user confirms commit + clears context.
 
 ## Completed
+- [2026-05-29] Phase 2.1 — Stripe lib + webhook handler + usage enforcement (code-complete; manual `stripe listen`/live-DB verification deferred). (See "Checkpoint 2.1 closeout — 2026-05-29" below.)
 - [2026-05-28] Phase 1 verification — live RLS (14/14 via real JWTs), found+fixed a `service_role` table-grant bug, external-service connectivity confirmed, all 4 checks green. (See "Phase 1 verification — 2026-05-28" below.)
 - [2026-05-28] Phase 1.3 — App shell + dashboard + settings skeleton. (See "Checkpoint 1.3 closeout" below.)
 - [2026-05-28] Phase 1.2 — Auth flow end-to-end. (See "Checkpoint 1.2 closeout" below.)
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- _(none)_ — Phase 1 complete and fully verified. Next: Phase 2 → Checkpoint 2.1 (Stripe lib + webhook + usage enforcement). `/admin` non-admin check is N/A until Phase 4. Resend domain verification still needed before Phase 3 (see Known issues).
+- _(none in code)_ — Phase 2.1 is code-complete and all 4 checks pass. **Pending manual verification** (requires `npm run dev` + `stripe listen` + live DB): trigger each Stripe event and confirm DB writes, duplicate-event short-circuit, invalid-signature 400 + Sentry, rate-limit 429, and re-run the RLS test on `subscriptions`. Tracked in the 2.1 closeout → Deferred. Next code work: Checkpoint 2.2 (projects domain). Resend domain verification still needed before Phase 3 (see Known issues).
 
 ## Phase 2 — entry notes (read before Checkpoint 2.1)
 Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-ready, no blockers**: `subscriptions` has all Stripe columns + `updated_at` trigger + `unique(workspace_id)`/`unique(stripe_customer_id)`; `usage` has `unique(workspace_id, resource)` + `count >= 0` with `increment_usage` (upsert) / `decrement_usage` (clamps at 0); `projects` RLS = member insert/select/update + owner/admin-only delete; `stripe_events` = `id`/`type`/`processed_at` (no RLS); `service_role` grants fixed; `usage_select_members` exists so enforcement reads don't fail open. Watch-items:
@@ -44,6 +48,7 @@ Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-read
 **At Phase 2 start:** raise `vitest.config.ts` coverage thresholds to **75 / 75 / 70 / 75** (lines/functions/branches/statements) per `.claude/rules/testing.md`.
 
 ## Known issues
+- **Phase 2.1 webhook flow is code-complete but unverified against live Stripe** — needs a manual `stripe listen` + live-DB session (see Checkpoint 2.1 closeout → Deferred). `lib/email.ts` ships as **stubs** (no real email sent until Phase 3.1). `stripe trigger` fixtures skip gracefully (no workspace mapping) unless a `metadata.workspaceId` override is added.
 - `npm audit` reports a moderate-severity `postcss` XSS advisory pulled in transitively via Next 15. **Accepted, not fixed** — see DECISIONS.md → "Accepted postcss XSS advisory (transitive via Next 15)". Not exploitable in our context (we author all CSS); the upstream fix requires Next 16.3+. Re-evaluate when we revisit Next 16.
 - **Resend has zero verified domains** — the API key is valid but no domain is verified, so email sends from a custom `FROM_EMAIL` will be rejected; only Resend's sandbox-to-self works. Not a Phase 1 blocker (email lands in Phase 3). Verify a domain (or use the sandbox sender) before Phase 3.1.
 - **`service_role` table grants were missing** (found + fixed during Phase 1 verification) — see "Phase 1 verification" below + DECISIONS.md → "Explicit table grants for SQL-Editor-created tables". Resolved; flagged here for the audit trail.
@@ -142,6 +147,83 @@ Verified via `scripts/rls-verify.mjs` (new) — a reproducible form of setup.md 
 
 _(Appended chronologically as checkpoints complete. Newest at the top.
 Each closeout follows the 8-item template defined in CLAUDE.md → Checkpoint protocol.)_
+
+## Checkpoint 2.1 closeout — 2026-05-29
+
+### 1. Planned vs delivered
+
+**Stripe lib**
+- ✅ `lib/stripe/client.ts` — `stripe = new Stripe(KEY, { apiVersion: "2026-05-27.dahlia", typescript: true })`
+- ✅ `lib/billing.ts` — `getWorkspaceSubscription` (delegates to `lib/subscription.getSubscription`), `getPlanNameFromPriceId` (delegates to `lib/plans.getPlanFromPriceId`), `getActivePlan` (free fallback + coerce), `getOrCreateStripeCustomer`
+- ✅ `lib/stripe/checkout.ts` — `createCheckoutSession({ workspaceId, priceId, userEmail })`, stamps `workspaceId` on session + `subscription_data.metadata`
+- ✅ `lib/stripe/portal.ts` — `createPortalSession({ customerId, returnUrl })`
+- ✅ `lib/stripe/webhooks.ts` — `handleStripeEvent(event)` with one handler per event type
+- ✅ `lib/validation/billing.ts` — checkout/portal/cancel body schemas + per-event webhook extraction schemas
+
+**Usage enforcement**
+- ✅ `lib/usage.ts` — `getUsage`, `canCreateProject`, `canAddMember`, `incrementUsage`, `decrementUsage`. Limit checks fail OPEN (Sentry-logged, return `true`).
+
+**Webhook API route**
+- ✅ `app/api/webhooks/stripe/route.ts` — rate-limit → signature verify → idempotency check → `handleStripeEvent` → record `stripe_events` → 200 (200 even on internal failure, Sentry-captured)
+- ⚠️ `revalidateTag("subscription:" + workspaceId)` — **deliberately omitted** (entry-note watch-item): the reads aren't wrapped in `unstable_cache({ tags })`, so the tag would be a no-op. Server Component reads are dynamic, so the UI stays fresh. Revisit in 2.3 if/when caching is added.
+
+**Extra (not in the task list, needed for the work)**
+- ✅ `lib/email.ts` — `sendTrialEndingEmail` / `sendPaymentFailedEmail` **stubs** (Phase 3.1 fills in real Resend sends; the webhook handlers call them now)
+- ✅ Extended `tests/mocks/supabase.ts` with write-capture (`getLastWrite` / `getSupabaseWrites`) — needed to assert exact written columns/values per the testing rules
+- ✅ Raised `vitest.config.ts` thresholds to 75/75/70/75; added `lib/stripe/client.ts` to coverage excludes (vendor-client constructor, same category as the already-excluded supabase clients)
+
+### 2. In plain English (delivered)
+
+The billing engine is built and fully unit-tested — no UI yet, exactly as the checkpoint intends. A Stripe Checkout/Portal session can be created in code (with `workspaceId` stamped into Stripe metadata so events map home). The webhook route verifies the Stripe signature, short-circuits duplicate deliveries via the `stripe_events` table, dispatches to per-event handlers, records the event only on success, and always returns 200 so Stripe never retry-storms. The handlers translate Stripe state into our `subscriptions` row: checkout/subscription events upsert plan + status + period + IDs (period read from the subscription **item**, per the current Stripe API); deletion flips to free/canceled; payment-failed → past_due (+ stub email); payment-succeeded → refreshes the period; trial-will-end fires the (stubbed) trial email. Usage enforcement is wired and fail-open: `canCreateProject`/`canAddMember` compare the plan limit against the live counter and, on any DB error, allow the action through while reporting to Sentry. Counter mutations go through the atomic RPCs.
+
+### 3. Done-when verification
+
+- ✅ Webhook handler logic for `checkout.session.completed` writes correct `plan_name`/`status`/periods/customer+sub IDs — verified in `tests/lib/stripe/webhooks.test.ts` (asserts the upserted columns)
+- ✅ `customer.subscription.deleted` → `plan_name='free'`, `status='canceled'` — verified in webhooks test
+- ✅ `invoice.payment_failed` → `status='past_due'` — verified in webhooks test
+- ✅ Webhook route returns 400 on bad signature, 200 on valid, 200 on duplicate (one `stripe_events` row) — verified in `tests/api/webhooks-stripe.test.ts`
+- ✅ `canCreateProject`/`canAddMember` correct per plan/count + fail-open on DB error (Sentry called) — verified in `tests/lib/usage.test.ts`
+- ✅ All Stripe webhook / usage / billing tests pass
+- ✅ `npm run test:coverage` ≥ 75% — **Stmts 85.6% · Branches 75.08% · Funcs 89.65% · Lines 88.65%** (thresholds 75/70/75/75)
+- ✅ `npm run type-check` — zero errors
+- ✅ `npm run build` — zero errors, 22 routes (incl. `ƒ /api/webhooks/stripe`)
+- ⚠️ Live `stripe trigger ...` → DB state changes — **deferred to manual session** (needs `stripe listen` + live DB)
+
+### 4. Test files added/changed
+
+- `tests/lib/billing.test.ts` (new, 14 cases)
+- `tests/lib/usage.test.ts` (new, 14 cases)
+- `tests/lib/validation/billing.test.ts` (new, 9 cases)
+- `tests/lib/stripe/checkout.test.ts` (new, 5 cases)
+- `tests/lib/stripe/portal.test.ts` (new, 2 cases)
+- `tests/lib/stripe/webhooks.test.ts` (new, 10 cases)
+- `tests/api/webhooks-stripe.test.ts` (new, 6 cases)
+- `tests/lib/email.test.ts` (new, 2 cases — stub coverage)
+- `tests/mocks/supabase.ts` (extended — write-capture, backward-compatible)
+
+### 5. New DECISIONS.md entries
+
+- Stripe period fields read from `subscription.items.data[0]` (API relocation; `apiVersion` pinned)
+- Webhook workspace resolution: metadata first, then `stripe_customer_id` lookup
+- Webhook returns 200 on handler failure and does NOT record the event (keeps it replayable)
+- Canonical Supabase mock extended with write capture
+
+### 6. Deferred items
+
+- **Full manual verification of this checkpoint** (Phase file §"Manual verification for this checkpoint") — needs `npm run dev` + `stripe listen --forward-to localhost:3000/api/webhooks/stripe` with `STRIPE_WEBHOOK_SECRET` set to the secret `stripe listen` prints. Items: trigger each of the 6 events and confirm DB writes; duplicate-event short-circuit (one `stripe_events` row); invalid-signature → 400 + Sentry; rate-limit → 429; re-run the RLS two-account test on `subscriptions`. Target: a standalone manual session before Phase 2 ships (or alongside 2.3, which exercises the full browser flow).
+- **`revalidateTag` cache wrappers** — decision is to omit until reads are wrapped in `unstable_cache`. Revisit in 2.3. Target: 2.3.
+- **Real trial-ending / payment-failed emails** — `lib/email.ts` ships as stubs; Phase 3.1 wires Resend + React Email and the templates. Target: 3.1.
+
+### 7. Known issues
+
+- `lib/email.ts` is a stub (console.info only) — webhook flow is complete but no email is actually sent until 3.1.
+- `stripe trigger` CLI fixtures create *new* customers/sessions with no workspace mapping, so triggered events skip gracefully by design — manual verification must add a `metadata.workspaceId` override or drive events from a real test-mode checkout (documented in DECISIONS → "Webhook workspace resolution").
+- Webhook idempotency is record-after-success; two simultaneous deliveries of the same event could both pass the pre-check before either records. The `stripe_events` PK still guarantees one row (the second insert fails, logged), and all writes are idempotent by `workspace_id`, so the end state is correct. True single-flight dedup is a v2 concern.
+- `subscriptions` RLS was already verified live in Phase 1 (14/14, included `subscriptions`); **no new tables or RLS policies were added in 2.1** — webhook writes use the service-role client, which bypasses RLS by design. A targeted `subscriptions` re-run is still on the manual list per security.md.
+
+### 8. What surprised me
+
+Stripe moved `current_period_start`/`current_period_end` off the `Subscription` object onto each `SubscriptionItem` in recent API versions — the `stripe@22` types for `2026-05-27.dahlia` don't even expose them at the top level, so the "obvious" `subscription.current_period_end` is both a compile error and `undefined` at runtime. Reading from `subscription.items.data[0]` is the correct path; this would have been a silent data bug if the types hadn't caught it.
 
 ## Checkpoint 1.3 closeout — 2026-05-28
 
