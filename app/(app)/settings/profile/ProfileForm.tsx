@@ -10,6 +10,10 @@ import { updateProfileAction, uploadAvatarAction } from "@/app/(app)/settings/ac
 import toast from "react-hot-toast"
 import { IconUser } from "@tabler/icons-react"
 
+// Must stay in sync with lib/profile.ts + the avatars bucket policy
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024
+const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp"]
+
 interface ProfileFormProps {
   displayName: string
   avatarUrl: string | null
@@ -33,32 +37,53 @@ export default function ProfileForm({ displayName, avatarUrl, email }: ProfileFo
   async function handleProfileSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setSavingProfile(true)
-    const fd = new FormData(e.currentTarget)
-    const result = await updateProfileAction(fd)
-    setSavingProfile(false)
-    if (result.ok) {
-      toast.success("Profile updated.")
-    } else {
-      toast.error(result.error.error)
+    try {
+      const fd = new FormData(e.currentTarget)
+      const result = await updateProfileAction(fd)
+      if (result.ok) {
+        toast.success("Profile updated.")
+      } else {
+        toast.error(result.error.error)
+      }
+    } catch {
+      toast.error("Could not update your profile. Please try again.")
+    } finally {
+      setSavingProfile(false)
     }
   }
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file) return
-    setUploadingAvatar(true)
-    const fd = new FormData()
-    fd.set("avatar", file)
-    const result = await uploadAvatarAction(fd)
-    setUploadingAvatar(false)
-    if (result.ok) {
-      setAvatar(result.data)
-      toast.success("Avatar updated.")
-    } else {
-      toast.error(result.error.error)
-    }
-    // Reset so the same file can be re-selected
+    // Reset immediately so the same file can be re-selected, even after a rejection
     if (fileRef.current) fileRef.current.value = ""
+    if (!file) return
+
+    // Client-side guards (UX) — the server action re-validates (security)
+    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+      toast.error("Avatar must be a JPEG, PNG, or WebP image.")
+      return
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      toast.error("Avatar must be 2 MB or smaller.")
+      return
+    }
+
+    setUploadingAvatar(true)
+    try {
+      const fd = new FormData()
+      fd.set("avatar", file)
+      const result = await uploadAvatarAction(fd)
+      if (result.ok) {
+        setAvatar(result.data)
+        toast.success("Avatar updated.")
+      } else {
+        toast.error(result.error.error)
+      }
+    } catch {
+      toast.error("Could not upload avatar. Please try again.")
+    } finally {
+      setUploadingAvatar(false)
+    }
   }
 
   return (

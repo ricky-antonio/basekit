@@ -89,6 +89,7 @@ export const mockSupabase = {
     signOut: vi.fn(),
     signInWithOAuth: vi.fn(),
     exchangeCodeForSession: vi.fn(),
+    verifyOtp: vi.fn(),
     resetPasswordForEmail: vi.fn(),
     updateUser: vi.fn(),
     admin: {

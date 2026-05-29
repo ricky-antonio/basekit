@@ -114,6 +114,19 @@ Authentication → Providers:
 - **Google:** enabled. You'll need a Google Cloud OAuth client — see step 5.
 - **Magic link:** enabled (uses the email provider).
 
+### 3g. Email templates (required — the app's `/callback` expects `token_hash`)
+The app completes email links with `verifyOtp` (not the default `code` flow), so the
+default templates' `{{ .ConfirmationURL }}` link will fail with `auth_failed`. In
+Authentication → Emails, edit the link in each template to point at our callback:
+
+- **Confirm signup:** `{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&type=email`
+- **Reset Password:** `{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&type=recovery`
+- **Magic Link:** `{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&type=email` (Phase 3)
+- **Invite user:** `{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&type=invite` (Phase 3)
+- **Change Email Address:** `{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&type=email_change`
+
+See DECISIONS.md → "Email links use `token_hash` + `verifyOtp`" for the rationale.
+
 ---
 
 ## 4. Stripe setup

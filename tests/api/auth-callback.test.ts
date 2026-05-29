@@ -45,6 +45,7 @@ describe("GET /callback", () => {
     mocks.getWorkspace.mockReset()
     mocks.bootstrapWorkspace.mockReset()
     vi.mocked(mockSupabase.auth.exchangeCodeForSession).mockReset()
+    vi.mocked(mockSupabase.auth.verifyOtp).mockReset()
   })
 
   it("redirects to /dashboard on first sign-in", async () => {
@@ -150,6 +151,47 @@ describe("GET /callback", () => {
     const response = await GET(makeRequest({ code: "test-code", next: "/\\evil.com" }))
 
     expect(response.headers.get("location")).toBe(`${BASE_URL}/dashboard`)
+  })
+
+  it("verifies an email token_hash and bootstraps on first sign-in", async () => {
+    vi.mocked(mockSupabase.auth.verifyOtp).mockResolvedValue({
+      data: { user: fakeUser as User, session: null },
+      error: null,
+    })
+    mocks.getWorkspace.mockResolvedValue({ ok: false, error: { error: "Not found", code: "NOT_FOUND" } })
+    mocks.bootstrapWorkspace.mockResolvedValue({ ok: true, data: "ws-1" })
+
+    const response = await GET(makeRequest({ token_hash: "hash-123", type: "signup" }))
+
+    expect(mockSupabase.auth.verifyOtp).toHaveBeenCalledWith({ type: "signup", token_hash: "hash-123" })
+    expect(mockSupabase.auth.exchangeCodeForSession).not.toHaveBeenCalled()
+    expect(mocks.bootstrapWorkspace).toHaveBeenCalledWith("user-1", "user@example.com")
+    expect(response.headers.get("location")).toBe(`${BASE_URL}/dashboard`)
+  })
+
+  it("sends a recovery token_hash to /reset-password without bootstrapping", async () => {
+    vi.mocked(mockSupabase.auth.verifyOtp).mockResolvedValue({
+      data: { user: fakeUser as User, session: null },
+      error: null,
+    })
+
+    const response = await GET(makeRequest({ token_hash: "hash-123", type: "recovery" }))
+
+    expect(mockSupabase.auth.verifyOtp).toHaveBeenCalledWith({ type: "recovery", token_hash: "hash-123" })
+    expect(mocks.getWorkspace).not.toHaveBeenCalled()
+    expect(mocks.bootstrapWorkspace).not.toHaveBeenCalled()
+    expect(response.headers.get("location")).toBe(`${BASE_URL}/reset-password`)
+  })
+
+  it("redirects to /login?error=auth_failed when verifyOtp fails", async () => {
+    vi.mocked(mockSupabase.auth.verifyOtp).mockResolvedValue({
+      data: { user: null, session: null } as any,
+      error: { message: "Token expired", name: "AuthApiError", status: 401 } as any,
+    })
+
+    const response = await GET(makeRequest({ token_hash: "expired", type: "signup" }))
+
+    expect(response.headers.get("location")).toBe(`${BASE_URL}/login?error=auth_failed`)
   })
 
   it("redirects to /login?error=workspace_failed if bootstrap fails", async () => {

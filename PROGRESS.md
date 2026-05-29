@@ -6,18 +6,24 @@
 Phase 1 — Foundation + Auth + Workspaces (in progress)
 
 ## Current checkpoint
-Checkpoint 1.3 — App shell + dashboard + settings skeleton (complete — awaiting commit)
+Phase 1 verification gate — **FULLY CLOSED**. Every manual-verification item passed
+(incl. live Sentry capture); found + fixed 3 real bugs along the way (service_role
+grants, email callback, avatar upload). Ready to commit, then begin Phase 2
+Checkpoint 2.1. Checkpoint 1.3 was already committed (`6b2168c`).
 
 ## Completed
+- [2026-05-28] Phase 1 verification — live RLS (14/14 via real JWTs), found+fixed a `service_role` table-grant bug, external-service connectivity confirmed, all 4 checks green. (See "Phase 1 verification — 2026-05-28" below.)
 - [2026-05-28] Phase 1.3 — App shell + dashboard + settings skeleton. (See "Checkpoint 1.3 closeout" below.)
 - [2026-05-28] Phase 1.2 — Auth flow end-to-end. (See "Checkpoint 1.2 closeout" below.)
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-_(none — Checkpoint 1.3 complete, awaiting commit)_
+- _(none)_ — Phase 1 complete and fully verified. Next: Phase 2 → Checkpoint 2.1 (Stripe lib + webhook + usage enforcement). `/admin` non-admin check is N/A until Phase 4. Resend domain verification still needed before Phase 3 (see Known issues).
 
 ## Known issues
 - `npm audit` reports a moderate-severity `postcss` XSS advisory pulled in transitively via Next 15. **Accepted, not fixed** — see DECISIONS.md → "Accepted postcss XSS advisory (transitive via Next 15)". Not exploitable in our context (we author all CSS); the upstream fix requires Next 16.3+. Re-evaluate when we revisit Next 16.
+- **Resend has zero verified domains** — the API key is valid but no domain is verified, so email sends from a custom `FROM_EMAIL` will be rejected; only Resend's sandbox-to-self works. Not a Phase 1 blocker (email lands in Phase 3). Verify a domain (or use the sandbox sender) before Phase 3.1.
+- **`service_role` table grants were missing** (found + fixed during Phase 1 verification) — see "Phase 1 verification" below + DECISIONS.md → "Explicit table grants for SQL-Editor-created tables". Resolved; flagged here for the audit trail.
 
 ## Setup notes
 
@@ -42,6 +48,55 @@ After the scaffold installed, three known issues were addressed in the same Clau
 - **postcss XSS advisory:** accepted, not fixed (see Known issues + DECISIONS.md).
 
 Last known-good build: `npm run build` → clean (zero TS errors, zero lint warnings, 5 routes generated).
+
+---
+
+## Phase 1 verification — 2026-05-28
+
+Closing the manual-verification debt deferred across 1.1–1.3. Note: PROGRESS.md was
+**stale** — most of the "deferred" 1.1 setup had actually been done in an unrecorded
+May 28 session. Reconciled state below.
+
+### Reconciled actual state (was wrongly marked deferred)
+- ✅ Migrations **are applied** to live Supabase (`basekit-dev`, ref `vcrjmecyjfscmanzapcc`) — 9 tables, 8 RLS-enabled, 25 policies, 8 functions. Schema lives in `supabase/migrations/combined.sql` (consolidated).
+- ✅ `lib/database.types.ts` is **real generated types** (484 lines, `__InternalSupabase` marker), not the hand stub.
+- ✅ Sentry **is wired** — `instrumentation.ts`, `instrumentation-client.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts` all present with `Sentry.init`; `SENTRY_DSN` set.
+- ✅ `.env.local` fully populated; both Supabase + Stripe CLIs installed.
+
+### Bug found + fixed: `service_role` table-grant gap
+A live PostgREST probe showed `service_role` getting `42501 permission denied` on **every** public table. Root cause: `combined.sql` granted table privileges only to `authenticated`, never `service_role`. `BYPASSRLS` skips row policies but NOT table grants. Impact: `logActivity` was silently failing (best-effort → Sentry only); the Phase 2 webhook `subscriptions.upsert` would have failed outright. **Fixed** by adding `grant ... to service_role` to `combined.sql` + applying to live DB via SQL Editor. Re-probe: all 9 tables HTTP 200 for service_role; `activity_log` insert→delete round-trip OK. See DECISIONS.md → "Explicit table grants for SQL-Editor-created tables" (updated).
+
+### Bug found + fixed: email-confirmation callback (PKCE vs email links)
+A real email-confirmation click landed on `/login?error=auth_failed` — and the workspace was never bootstrapped (bootstrap runs after the session exchange). Root cause: the callback only did `exchangeCodeForSession`, which needs the PKCE `code_verifier` cookie that isn't reliably present when a link is opened from a mail client. **Fixed** by branching the callback on `token_hash` (→ `verifyOtp`, no verifier cookie needed) vs `code` (→ OAuth, unchanged), plus customising the Supabase **Confirm signup** and **Reset Password** email templates to `{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&type=...`. Recovery links skip bootstrap and route to `/reset-password`. **Live-verified**: fresh email signup → confirm link → lands on `/dashboard` with a bootstrapped free workspace. See DECISIONS.md → "Email links use `token_hash` + `verifyOtp`". (+3 callback tests; 138 total.) NOTE: the email templates live in the Supabase dashboard, not the repo — re-apply on a fresh project (now noted in `.claude/setup.md`).
+
+### Bug found + fixed: avatar upload (Server Action body limit + form hang)
+Avatar upload hung on "Uploading…" with a dev-overlay error for any 1–2 MB image. Two causes: (1) Next.js Server Actions default to a **1 MB** body limit but avatars are capped at 2 MB — files >1 MB were rejected by the framework before the handler ran; (2) `ProfileForm.handleAvatarChange` awaited the action with no `try/catch`, so the framework throw left `uploadingAvatar` stuck true. **Fixed**: `experimental.serverActions.bodySizeLimit = "3mb"` in `next.config.ts`; `ProfileForm` now pre-validates size/type client-side (instant friendly rejection) and wraps both handlers in `try/catch/finally`. **Live-verified**: upload works; >2 MB and `.pdf` both rejected with friendly toasts, no hang. See DECISIONS.md → "Server Action body limit raised to 3 MB". (Requires a dev-server restart to take effect.)
+
+### RLS verified for tables: profiles, workspaces, workspace_members, invitations, subscriptions, usage, projects, activity_log
+Verified via `scripts/rls-verify.mjs` (new) — a reproducible form of setup.md §12 that drives the **live RLS engine with real user JWTs**: creates two confirmed users, A creates a private project, then asserts B and anon cannot read A's rows, with positive controls proving legitimate own-access still works. **Result: 14/14 PASS.** (`stripe_events` is service-role-only by design — no user-facing policy.) Re-run each phase per security.md.
+
+### External services
+- ✅ Stripe — key valid; all 4 price IDs resolve to exact spec amounts (Pro $29/$276, Enterprise $99/$948).
+- ✅ Upstash Redis — live.
+- ✅ Sentry — config + DSN present (live error-capture pending the browser step below).
+- ⚠️ Resend — key valid but **0 verified domains** (Phase 3 concern — see Known issues).
+
+### Code-green (end-of-session checks, all pass)
+- `type-check` ✅ zero errors
+- `test` / `test:coverage` ✅ 85.78% stmts / 77.63% branches / 85% funcs / 86.09% lines (> Phase 1 thresholds)
+- `build` ✅ all routes, zero errors
+
+### Remaining (browser-only, require `npm run dev` — tracked in "In progress")
+- [x] Email signup → verification email → callback → workspace bootstrapped → `/dashboard` ✅ (after the callback fix above; also confirmed sidebar active-highlight, dashboard greeting + FREE plan badge + slug, topbar user menu render correctly)
+- [x] Google OAuth signup/sign-in → `/dashboard`, no duplicate workspace on repeat ✅
+- [x] Same-email merge — Google sign-in with the existing account's email landed on the same workspace (no duplicate) ✅
+- [x] Theme toggle persists across reload; respects system on first load ✅
+- [x] Avatar upload works; >2MB and non-image rejected live ✅ (after the body-limit + form-hang fix above)
+- [x] Profile update → toast + topbar reflects new name ✅  ·  password change saves ✅ (re-auth with current password)
+- [x] Keyboard-only tab-through; Escape closes every modal; focus returns to trigger ✅
+- [x] Mobile: bottom nav (verified via DevTools device toolbar) ✅
+- [~] `/admin` as a non-admin → blocked — **N/A for Phase 1** (admin section is built in Phase 4)
+- [x] Sentry captures a deliberate error from a running server within 30s ✅ — confirmed live via a temporary `/api/sentry-check` probe (event appeared in Sentry Issues); probe removed before commit
 
 ---
 

@@ -366,6 +366,14 @@ grant usage on schema public to authenticated;
 grant select, insert, update, delete on all tables in schema public to authenticated;
 grant execute on all functions in schema public to authenticated;
 
+-- service_role is the privileged server-side identity (webhook handler, activity
+-- logging, admin operations). BYPASSRLS skips row policies but NOT table grants,
+-- so it needs explicit privileges here — including full UPDATE on profiles, since
+-- admin role changes run server-side through the service-role client.
+grant usage on schema public to service_role;
+grant select, insert, update, delete on all tables in schema public to service_role;
+grant execute on all functions in schema public to service_role;
+
 -- Prevent privilege escalation: revoke broad UPDATE on profiles and re-grant only
 -- the user-mutable columns. Authenticated users cannot change their own role this way.
 -- Admin role changes must go through a service-role server action.

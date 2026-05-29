@@ -201,11 +201,36 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 ---
 
 ## Explicit table grants for SQL-Editor-created tables
-**Decision:** `combined.sql` ends with `GRANT USAGE ON SCHEMA public TO authenticated; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated; GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;`
+**Decision:** `combined.sql` ends with explicit grants for BOTH `authenticated` and `service_role`: `GRANT USAGE ON SCHEMA public ...; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public ...; GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public ...` to each role.
 **Why:** Tables created via the Supabase Dashboard's Table Editor automatically get the right grants for the `authenticated` and `anon` roles via Supabase's UI tooling. Tables created via raw SQL in the SQL Editor do NOT — the SQL Editor runs as `postgres` and grants are not applied automatically. Without these grants, even a correctly-RLS-policied query fails with `42501: permission denied for table workspaces`. We hit this during Checkpoint 1.1 RLS verification. RLS still acts as the row filter — the grant is just the table-level privilege check that happens before RLS even runs.
+**Update (2026-05-28, Phase 1 verification):** The original grants covered only `authenticated`. During the Phase 1 manual verification gate, a live PostgREST probe revealed `service_role` was getting `42501 permission denied` on **every** public table — `service_role` had never been granted. This is a distinct trap from the `authenticated` case: `service_role` carries `BYPASSRLS`, which skips *row-level policies* but NOT *table-level privileges*, so it still needs explicit grants. The gap silently broke `logActivity` (best-effort, so it only surfaced in Sentry) and would have made the Phase 2 Stripe webhook handler's `subscriptions.upsert` fail outright. Fixed by adding the three `... TO service_role` grants. `service_role` deliberately gets full UPDATE on `profiles` (unlike `authenticated`, which is column-restricted) because admin role changes run server-side through the service-role client.
 **Alternatives rejected:**
 - Create tables via the Supabase Dashboard UI — loses version control, can't be replayed in CI or on a fresh project.
 - Use the Supabase CLI (`supabase db push`) which does apply correct grants — requires the user to set up local Supabase tooling for what is otherwise a copy-paste SQL Editor flow. Add as an option later when we ship Supabase migrations as a directory rather than `combined.sql`.
+- Rely on `BYPASSRLS` to also cover table privileges for `service_role` — it does not; row-security bypass and table-privilege checks are independent in Postgres.
 **Date:** 2026-05-28
+
+---
+
+## Email links use `token_hash` + `verifyOtp`; OAuth keeps the `code` flow
+**Decision:** The `/callback` route handles two distinct auth entry points. Email links (signup confirmation, password recovery, magic link, email change) arrive with a `token_hash` + `type` and are completed with `supabase.auth.verifyOtp({ type, token_hash })`. OAuth (Google) arrives with a `code` and is completed with `exchangeCodeForSession(code)`. The Supabase email templates are customised to point at `{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&type=...` instead of the default `{{ .ConfirmationURL }}`.
+**Why:** The project uses the PKCE flow (default in `@supabase/ssr`). `exchangeCodeForSession` requires the PKCE `code_verifier` cookie that was set when `signUp`/`signInWithOAuth` ran. For OAuth that cookie is present (sign-in and callback happen in the same browser). For **email confirmation it is not reliably present** — the link is often opened from a mail client, a different tab, or after the cookie has been cleared — so `exchangeCodeForSession` fails with `auth_failed`. We hit this during the Phase 1 verification gate: a real email-confirmation click landed on `/login?error=auth_failed` and the workspace was never bootstrapped (bootstrap runs *after* the exchange). `verifyOtp` with a `token_hash` is the Supabase-recommended SSR pattern for email links — it carries the verification material in the URL and needs no verifier cookie. Recovery links additionally skip workspace bootstrap and route straight to `/reset-password`.
+**Alternatives rejected:**
+- Keep only the `code` flow + default templates — the broken state we started from; fails for email links opened outside the original browser session.
+- Switch the whole client to the implicit flow — delivers tokens in the URL hash, which a server route handler cannot read (the hash is never sent to the server) and is less secure.
+- A separate `/auth/confirm` route (as in some Supabase docs) — works, but a single `/callback` that branches on `token_hash` vs `code` is one fewer route and one redirect-safety helper to maintain.
+**Operational note:** Because the templates are customised in the Supabase dashboard (not in the repo), a fresh project setup must re-apply them. Captured in `.claude/setup.md` follow-up + PROGRESS.md.
+**Date:** 2026-05-28
+
+---
+
+## Server Action body limit raised to 3 MB for 2 MB avatar uploads
+**Decision:** Set `experimental.serverActions.bodySizeLimit = "3mb"` in `next.config.ts`. Client form handlers (`ProfileForm`) also pre-validate avatar size/type before sending and wrap the action call in `try/catch/finally`.
+**Why:** Avatars are capped at 2 MB (`lib/profile.ts` + bucket policy), but Next.js Server Actions default to a **1 MB** request-body limit. Any 1–2 MB avatar was silently rejected by the framework *before* our handler ran, surfacing as a dev-overlay error and a button stuck on "Uploading…" (the handler `await`ed the action with no `try/catch`, so the `loading=false` reset never fired). Found during the Phase 1 verification gate. The body limit is raised to 3 MB to clear a 2 MB file plus multipart overhead; client-side pre-validation gives an instant friendly rejection for oversize/non-image files (UX) while the server action still re-validates (security); `try/catch/finally` guarantees the loading state always resets per the "silence after a click is a bug" rule.
+**Alternatives rejected:**
+- Lower the avatar cap to under 1 MB to fit the default — degrades a normal product expectation (profile photos are routinely 1–2 MB).
+- Raise the limit only, without client pre-validation — oversize files would still round-trip the full body before the server rejects them, and the picker offers no instant feedback.
+- Catch the framework error globally — the per-handler `try/catch/finally` is localised and keeps the loading-state contract obvious at the call site.
+**Date:** 2026-05-29
 
 ---

@@ -2,7 +2,13 @@ import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  experimental: {
+    // Avatars are capped at 2 MB (lib/profile.ts); the default Server Action body
+    // limit is 1 MB, which silently rejects 1–2 MB uploads. Headroom for multipart overhead.
+    serverActions: {
+      bodySizeLimit: "3mb",
+    },
+  },
 };
 
 export default withSentryConfig(nextConfig, {
