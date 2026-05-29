@@ -225,6 +225,23 @@ The billing engine is built and fully unit-tested — no UI yet, exactly as the 
 
 Stripe moved `current_period_start`/`current_period_end` off the `Subscription` object onto each `SubscriptionItem` in recent API versions — the `stripe@22` types for `2026-05-27.dahlia` don't even expose them at the top level, so the "obvious" `subscription.current_period_end` is both a compile error and `undefined` at runtime. Reading from `subscription.items.data[0]` is the correct path; this would have been a silent data bug if the types hadn't caught it.
 
+### 9. Post-2.1 hardening pass (same session, pre-2.2)
+
+A self-review surfaced 7 robustness items; all fixed before entering 2.2 (still all 4 gates green):
+
+**Availability**
+- **Middleware no longer intercepts the webhook** — `middleware.ts` matcher excludes `api/webhooks`; webhooks no longer trigger a Supabase `auth.getUser()` round-trip (the body was always safe — middleware never reads it — this is the latency/coupling fix).
+- **`checkRateLimit` fails open** on a Redis outage (allow + Sentry) instead of throwing → a webhook can't be turned into a retry-storming 500 by an Upstash blip. (+1 ratelimit test.)
+- **Webhook route pins `runtime = "nodejs"`** (Stripe signature verification needs Node crypto) and adds an `x-real-ip` fallback for the rate-limit key.
+
+**Correctness / authorization**
+- **`getActivePlan` is status-aware** — `canceled`/`incomplete`/`unpaid` collapse to `free` regardless of stored `plan_name`; `active`/`trialing`/`past_due` grant access. Closes the gap where an unpaid/incomplete subscription kept Pro limits. (+5 billing tests.) See DECISIONS → "Plan access is gated on subscription status".
+- **`invoice.payment_succeeded` no longer sets `status`** — only refreshes `current_period_end`; `customer.subscription.*` events own status (prevents stomping `trialing`). (+1 test, 1 updated.)
+- **Empty-line-item subscription payloads are skipped**, not written as `free` (avoids silently downgrading a paying customer). (+1 test.)
+- **Paid-tier plan switches are logged** (`subscription.upgraded`/`downgraded` from `customer.subscription.updated`); the initial free→paid purchase stays logged once by `checkout.session.completed`. Avoids the double/zero-log race between the two events. (+4 tests.)
+
+Net: 218 tests (was 206), all 4 gates green. See DECISIONS → "Post-2.1 webhook/limiter hardening".
+
 ## Checkpoint 1.3 closeout — 2026-05-28
 
 ### 1. Planned vs delivered

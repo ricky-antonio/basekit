@@ -175,16 +175,21 @@ describe("invoice.payment_failed", () => {
 })
 
 describe("invoice.payment_succeeded", () => {
-  it("updates current_period_end", async () => {
+  it("updates current_period_end without touching status", async () => {
     mockSupabaseFrom("subscriptions", { data: { workspace_id: workspaceId }, error: null })
 
     await handleStripeEvent(event("invoice.payment_succeeded", { customer: "cus_1", period_end: 5000 }))
 
     const write = getLastWrite("subscriptions", "update")
-    expect(write?.payload).toMatchObject({
-      status: "active",
-      current_period_end: new Date(5000 * 1000).toISOString(),
-    })
+    expect(write?.payload).toEqual({ current_period_end: new Date(5000 * 1000).toISOString() })
+  })
+
+  it("does not write when there is no period_end", async () => {
+    mockSupabaseFrom("subscriptions", { data: { workspace_id: workspaceId }, error: null })
+
+    await handleStripeEvent(event("invoice.payment_succeeded", { customer: "cus_1" }))
+
+    expect(getLastWrite("subscriptions", "update")).toBeUndefined()
   })
 })
 
@@ -201,12 +206,68 @@ describe("customer.subscription.trial_will_end", () => {
   })
 })
 
+describe("plan-change activity logging", () => {
+  it("logs subscription.upgraded when switching between paid tiers (pro → enterprise)", async () => {
+    mockSupabaseFrom("subscriptions", { data: { plan_name: "pro" }, error: null })
+
+    await handleStripeEvent(
+      event(
+        "customer.subscription.updated",
+        subscriptionObject({
+          items: {
+            data: [{ price: { id: "price_enterprise_monthly_test" }, current_period_start: 1, current_period_end: 2 }],
+          },
+        }),
+      ),
+    )
+
+    expect(mocks.logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "subscription.upgraded", metadata: { from: "pro", to: "enterprise" } }),
+    )
+  })
+
+  it("logs subscription.downgraded when switching down between paid tiers (enterprise → pro)", async () => {
+    mockSupabaseFrom("subscriptions", { data: { plan_name: "enterprise" }, error: null })
+
+    await handleStripeEvent(event("customer.subscription.updated", subscriptionObject()))
+
+    expect(mocks.logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "subscription.downgraded", metadata: { from: "enterprise", to: "pro" } }),
+    )
+  })
+
+  it("does not log when the plan is unchanged (routine renewal)", async () => {
+    mockSupabaseFrom("subscriptions", { data: { plan_name: "pro" }, error: null })
+
+    await handleStripeEvent(event("customer.subscription.updated", subscriptionObject()))
+
+    expect(mocks.logActivity).not.toHaveBeenCalled()
+  })
+
+  it("does not log the initial free → paid transition (checkout owns that)", async () => {
+    mockSupabaseFrom("subscriptions", { data: { plan_name: "free" }, error: null })
+
+    await handleStripeEvent(event("customer.subscription.updated", subscriptionObject()))
+
+    expect(mocks.logActivity).not.toHaveBeenCalled()
+  })
+})
+
 describe("graceful handling", () => {
   it("logs and skips when no workspace can be resolved", async () => {
     mockSupabaseFrom("subscriptions", { data: null, error: null })
 
     await handleStripeEvent(
       event("customer.subscription.updated", subscriptionObject({ metadata: {}, customer: null })),
+    )
+
+    expect(Sentry.captureMessage).toHaveBeenCalled()
+    expect(getLastWrite("subscriptions", "upsert")).toBeUndefined()
+  })
+
+  it("skips a subscription event that has no line item", async () => {
+    await handleStripeEvent(
+      event("customer.subscription.updated", subscriptionObject({ items: { data: [] } })),
     )
 
     expect(Sentry.captureMessage).toHaveBeenCalled()

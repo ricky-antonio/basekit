@@ -22,11 +22,19 @@ function normalizePlanName(planName: string): PlanName {
   return planName === "pro" || planName === "enterprise" ? planName : "free"
 }
 
-// The plan a workspace is currently on. Falls back to 'free' when no subscription
-// row exists (and coerces any unexpected stored value back to a known plan).
+// Statuses that actually grant plan access. `past_due` is included: Stripe is still
+// retrying payment (dunning grace), so we keep access until it cancels. Everything
+// else — canceled, incomplete (initial payment never cleared), unpaid (dunning
+// exhausted) — means no paid access regardless of the stored plan name.
+const ACCESS_GRANTING_STATUSES = new Set(["active", "trialing", "past_due"])
+
+// The plan a workspace effectively has right now. Falls back to 'free' when no
+// subscription exists OR when the subscription's status no longer grants access —
+// so a half-finished or lapsed subscription can't keep handing out Pro limits.
 export async function getActivePlan(workspaceId: string): Promise<PlanName> {
   const result = await getWorkspaceSubscription(workspaceId)
   if (!result.ok) return "free"
+  if (!ACCESS_GRANTING_STATUSES.has(result.data.status)) return "free"
   return normalizePlanName(result.data.plan_name)
 }
 

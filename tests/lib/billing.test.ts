@@ -79,7 +79,7 @@ describe("getWorkspaceSubscription", () => {
 })
 
 describe("getActivePlan", () => {
-  it("returns the stored plan when a subscription exists", async () => {
+  it("returns the stored plan when the subscription is active", async () => {
     mockSupabaseFrom("subscriptions", { data: subscriptionRow, error: null })
     expect(await getActivePlan(workspaceId)).toBe("pro")
   })
@@ -91,6 +91,31 @@ describe("getActivePlan", () => {
 
   it("coerces an unexpected stored plan back to 'free'", async () => {
     mockSupabaseFrom("subscriptions", { data: { ...subscriptionRow, plan_name: "garbage" }, error: null })
+    expect(await getActivePlan(workspaceId)).toBe("free")
+  })
+
+  it("keeps access while past_due (dunning grace period)", async () => {
+    mockSupabaseFrom("subscriptions", { data: { ...subscriptionRow, status: "past_due" }, error: null })
+    expect(await getActivePlan(workspaceId)).toBe("pro")
+  })
+
+  it("grants access while trialing", async () => {
+    mockSupabaseFrom("subscriptions", { data: { ...subscriptionRow, status: "trialing" }, error: null })
+    expect(await getActivePlan(workspaceId)).toBe("pro")
+  })
+
+  it("returns 'free' when the subscription is canceled", async () => {
+    mockSupabaseFrom("subscriptions", { data: { ...subscriptionRow, status: "canceled" }, error: null })
+    expect(await getActivePlan(workspaceId)).toBe("free")
+  })
+
+  it("returns 'free' when the subscription is incomplete (payment never cleared)", async () => {
+    mockSupabaseFrom("subscriptions", { data: { ...subscriptionRow, status: "incomplete" }, error: null })
+    expect(await getActivePlan(workspaceId)).toBe("free")
+  })
+
+  it("returns 'free' when the subscription is unpaid (dunning exhausted)", async () => {
+    mockSupabaseFrom("subscriptions", { data: { ...subscriptionRow, status: "unpaid" }, error: null })
     expect(await getActivePlan(workspaceId)).toBe("free")
   })
 })

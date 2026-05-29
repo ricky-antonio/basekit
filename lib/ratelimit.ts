@@ -1,5 +1,6 @@
 import { Ratelimit } from "@upstash/ratelimit"
 import { Redis } from "@upstash/redis"
+import * as Sentry from "@sentry/nextjs"
 import type { ApiError } from "@/lib/types"
 
 const redis = Redis.fromEnv()
@@ -27,12 +28,23 @@ export async function checkRateLimit(
   limiter: keyof typeof limiters,
   identifier: string,
 ): Promise<{ success: true } | { success: false; error: ApiError }> {
-  const { success, reset } = await limiters[limiter].limit(identifier)
-  if (success) return { success: true }
+  let result: { success: boolean; reset: number }
+  try {
+    result = await limiters[limiter].limit(identifier)
+  } catch (error) {
+    // Fail OPEN: if Redis is unreachable we allow the request rather than 500.
+    // Blocking every request (incl. Stripe webhooks, which would then retry-storm)
+    // on a rate-limiter outage is worse than briefly skipping the limit.
+    console.error(`[ratelimit] ${limiter} check failed; failing open`, error)
+    Sentry.captureException(error)
+    return { success: true }
+  }
+
+  if (result.success) return { success: true }
   return {
     success: false,
     error: {
-      error: `Too many requests. Try again at ${new Date(reset).toLocaleTimeString()}.`,
+      error: `Too many requests. Try again at ${new Date(result.reset).toLocaleTimeString()}.`,
       code: "RATE_LIMITED",
     },
   }

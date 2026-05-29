@@ -6,8 +6,15 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { handleStripeEvent } from "@/lib/stripe/webhooks"
 import { checkRateLimit } from "@/lib/ratelimit"
 
+// Stripe signature verification uses Node crypto and needs the raw body — pin the
+// Node runtime so an edge default can never silently break verification.
+export const runtime = "nodejs"
+
 export async function POST(request: Request): Promise<Response> {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    request.headers.get("x-real-ip") ??
+    "unknown"
   const rateLimit = await checkRateLimit("webhookStripe", ip)
   if (!rateLimit.success) {
     return NextResponse.json(rateLimit.error, { status: 429 })

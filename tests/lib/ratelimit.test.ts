@@ -17,7 +17,10 @@ vi.mock("@upstash/ratelimit", () => ({
   },
 }))
 
+vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }))
+
 const { checkRateLimit } = await import("@/lib/ratelimit")
+const Sentry = await import("@sentry/nextjs")
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -52,5 +55,13 @@ describe("checkRateLimit", () => {
     if (!result.success) {
       expect(result.error.error).toContain("Try again at")
     }
+  })
+
+  it("fails open (allows the request) and reports to Sentry when Redis throws", async () => {
+    mockLimit.mockRejectedValue(new Error("redis unreachable"))
+
+    const result = await checkRateLimit("webhookStripe", "1.2.3.4")
+    expect(result.success).toBe(true)
+    expect(Sentry.captureException).toHaveBeenCalled()
   })
 })

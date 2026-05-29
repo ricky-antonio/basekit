@@ -284,3 +284,21 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 - Per-test inline builders (the older `captureInsert()` pattern in `activity.test.ts`) — duplicative, drift-prone, and can't model multiple writes to different tables in one handler.
 - Assert only on results/behaviour — insufficient for "assert the exact columns written" required of webhook handlers.
 **Date:** 2026-05-29
+
+## Plan access is gated on subscription status, not just `plan_name`
+**Decision:** `getActivePlan(workspaceId)` returns `'free'` unless the subscription's `status` is access-granting (`active`, `trialing`, or `past_due`). `canceled` / `incomplete` / `unpaid` all collapse to `free` regardless of the stored `plan_name`. `past_due` deliberately keeps access (Stripe dunning grace).
+**Why:** Originally access derived from `plan_name` alone, which is only flipped to `free` on `customer.subscription.deleted`. That left a gap: an `incomplete` subscription (initial/SCA payment never cleared) or an `unpaid` one (dunning exhausted) would keep `plan_name='pro'` and hand out Pro limits without a successful payment. Gating on status closes that without needing every lapse to produce a delete event. `past_due` is intentionally included because Stripe is still retrying — cutting access mid-dunning is worse UX than the small risk of a few hours of unpaid access.
+**Alternatives rejected:**
+- Plan-name only (original) — grants access on `incomplete`/`unpaid`; an authorization gap.
+- Exclude `past_due` too — would yank Pro the instant a renewal charge is late, before Stripe has even retried.
+**Date:** 2026-05-29
+
+---
+
+## Post-2.1 webhook/limiter hardening
+**Decision:** Four robustness fixes after the 2.1 self-review: (1) the Supabase middleware matcher excludes `api/webhooks` so webhooks never depend on an auth round-trip; (2) `checkRateLimit` fails **open** (allow + Sentry) when Redis is unreachable, rather than throwing; (3) the webhook route pins `export const runtime = "nodejs"` and falls back to `x-real-ip`; (4) `invoice.payment_succeeded` only refreshes `current_period_end` and no longer sets `status` — `customer.subscription.*` events are the sole source of truth for status; empty-line-item subscription payloads are skipped instead of written as `free`. Plan switches *between paid tiers* are logged (`subscription.upgraded`/`downgraded`) from `customer.subscription.updated`; the initial free→paid purchase is logged once by `checkout.session.completed`.
+**Why:** Each addressed a way the webhook path could fail or mislead under real conditions — a rate-limiter or auth outage turning every webhook into a retry-storming 500, a Node-only crypto call running on an unexpected edge default, an invoice event stomping a `trialing` status, or a malformed payload silently downgrading a paying customer. The paid-tier-only logging rule avoids the double/zero-log race between the checkout and subscription-created events that both describe the same purchase.
+**Alternatives rejected:**
+- Fail closed on limiter error — safer against abuse but converts a dependency blip into a full outage; for a webhook it also defeats the "always 200, never retry-storm" contract.
+- Log every plan change from both events — double-logs (or zero-logs, depending on event order) the initial purchase.
+**Date:** 2026-05-29

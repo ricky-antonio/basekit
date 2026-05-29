@@ -37,6 +37,8 @@ function toIso(unixSeconds: number | null | undefined): string | null {
   return new Date(unixSeconds * 1000).toISOString()
 }
 
+const PLAN_RANK: Record<string, number> = { free: 0, pro: 1, enterprise: 2 }
+
 function refToId(ref: string | { id: string } | null | undefined): string | null {
   if (ref == null) return null
   return typeof ref === "string" ? ref : ref.id
@@ -112,6 +114,9 @@ async function handleCheckoutCompleted(supabase: ServiceClient, raw: unknown): P
   const rawSubscription = await stripe.subscriptions.retrieve(subscriptionId)
   const subParsed = subscriptionEventSchema.safeParse(rawSubscription)
   if (!subParsed.success) return skip("checkout.session.completed (subscription parse)", subParsed.error.issues)
+  if (!subParsed.data.items.data[0]) {
+    return skip("checkout.session.completed (no line item)", { subscriptionId })
+  }
 
   const fields = buildSubscriptionFields(subParsed.data)
   await writeSubscription(supabase, workspaceId, fields)
@@ -130,6 +135,10 @@ async function handleSubscriptionChange(supabase: ServiceClient, raw: unknown): 
   if (!parsed.success) return skip("customer.subscription.updated (parse)", parsed.error.issues)
 
   const subscription = parsed.data
+  if (!subscription.items.data[0]) {
+    return skip("customer.subscription.updated (no line item)", { id: subscription.id })
+  }
+
   const workspaceId = await resolveWorkspaceId(
     supabase,
     subscription.metadata?.["workspaceId"],
@@ -137,7 +146,34 @@ async function handleSubscriptionChange(supabase: ServiceClient, raw: unknown): 
   )
   if (!workspaceId) return skip("customer.subscription.updated (no workspace)", { id: subscription.id })
 
-  await writeSubscription(supabase, workspaceId, buildSubscriptionFields(subscription))
+  // Read the prior plan so a portal-initiated tier switch can be logged. The
+  // initial free→paid purchase is logged by checkout.session.completed; here we
+  // only log switches *between paid tiers*, which avoids double-logging the
+  // purchase when the created/updated events race the checkout event.
+  const { data: previous } = await supabase
+    .from("subscriptions")
+    .select("plan_name")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle()
+
+  const fields = buildSubscriptionFields(subscription)
+  await writeSubscription(supabase, workspaceId, fields)
+
+  const previousPlan = previous?.plan_name ?? "free"
+  if (previousPlan !== fields.plan_name && previousPlan !== "free" && fields.plan_name !== "free") {
+    const action =
+      (PLAN_RANK[fields.plan_name] ?? 0) > (PLAN_RANK[previousPlan] ?? 0)
+        ? "subscription.upgraded"
+        : "subscription.downgraded"
+    await logActivity({
+      workspaceId,
+      actorId: null,
+      action,
+      targetType: "subscription",
+      targetId: subscription.id,
+      metadata: { from: previousPlan, to: fields.plan_name },
+    })
+  }
 }
 
 async function handleSubscriptionDeleted(supabase: ServiceClient, raw: unknown): Promise<void> {
@@ -213,12 +249,14 @@ async function handleInvoicePaymentSucceeded(supabase: ServiceClient, raw: unkno
   if (!workspaceId) return skip("invoice.payment_succeeded (no workspace)", {})
 
   const periodEnd = toIso(parsed.data.period_end)
-  const update: { status: SubscriptionStatus; current_period_end?: string } = { status: "active" }
-  if (periodEnd) update.current_period_end = periodEnd
+  if (!periodEnd) return
 
+  // Only refresh the billing period. Status transitions (past_due → active on
+  // recovery, trialing, etc.) are owned by customer.subscription.* events — the
+  // source of truth — so an invoice event can't stomp a 'trialing' status here.
   const { error } = await supabase
     .from("subscriptions")
-    .update(update)
+    .update({ current_period_end: periodEnd })
     .eq("workspace_id", workspaceId)
   if (error) throw new Error(`subscriptions period update failed: ${error.message}`)
 }
