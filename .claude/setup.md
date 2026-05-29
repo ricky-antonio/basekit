@@ -185,6 +185,8 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
    - **Authorised redirect URIs:** copy the redirect URL from Supabase Auth → Providers → Google (format: `https://<project>.supabase.co/auth/v1/callback`)
 4. Copy the **client ID** and **client secret** into Supabase Auth → Providers → Google → save.
 
+> **Branding note:** The Google sign-in account-chooser ("to continue to …") shows the OAuth client's **redirect/authorized domain**, which by default is `https://<project>.supabase.co`. Setting the consent-screen **App name** to `basekit` brands the *permission* page but does NOT change that account-chooser domain line. To show your own domain there, set up a **Supabase Custom Auth Domain** (Pro Custom Domain add-on) so the redirect becomes `https://auth.<yourdomain>/auth/v1/callback`, then update the Google client's authorized redirect URI + authorized domain. Deferred to Phase 5 (needs a registered domain) — see PROGRESS.md Known issues.
+
 ---
 
 ## 6. Resend
