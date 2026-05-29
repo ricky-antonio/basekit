@@ -5,9 +5,17 @@ checkpoint), **after** the four gates pass but **before** committing. It is the 
 for a second reviewer: a structured pass whose job is to find what's wrong or fragile in
 what changed this session — not to restate what works.
 
-How to use it: paste the **Full prompt** below. It ends at a prioritized list of findings,
-on purpose — auditing and fixing are separate decisions. Review the list, then decide what
-to fix now vs. defer. (Use the **Compact prompt** for small/low-risk sessions.)
+It is part of the standard end-of-session flow (CLAUDE.md → "End of every session"). The agent
+does **not** run it silently: once the gates pass it first presents a build summary, then prompts
+to run the audit — so you can review what was built before the audit reframes things. The full
+flow is:
+
+**gates green → build summary → prompt to run audit → audit → resolve/defer findings → (closeout) → commit prompt**
+
+The audit ends at a prioritized list on purpose — auditing and fixing are separate decisions, so
+the agent presents findings and waits rather than silently fixing. You can also paste the **Full
+prompt** below to trigger it explicitly anytime mid-session. (Use the **Compact prompt** for
+small/low-risk sessions.)
 
 ---
 

@@ -216,8 +216,18 @@ npm run test:coverage
 npm run build
 ```
 
-Once the four gates pass, run the session audit in `.claude/session-audit.md` (a structured
-self-review of this session's diff against the rules + phase spec) before committing.
+Once the four gates pass, first present a short summary of what was built/changed this session.
+Then **STOP and prompt to run the session audit** (`.claude/session-audit.md`) — do not run it
+silently, so the user can review the build summary first. Prompt verbatim:
+
+> "Build complete — all four gates pass. Summary above. Run the session audit before we commit?"
+
+On confirmation, run the audit, present its findings, and resolve or explicitly defer every 🔴/🟠
+item (re-running the four gates after any fix) before committing. When the session also closes a
+checkpoint, the audit runs before the closeout write and the commit prompt, so the closeout reflects
+the post-audit state. The order is always:
+
+`gates green → build summary → prompt to run audit → audit → resolve/defer → (closeout) → commit prompt`
 
 Update PROGRESS.md before closing. Commit only after all four pass.
 
