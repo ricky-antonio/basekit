@@ -66,6 +66,7 @@ NEXT_PUBLIC_SITE_URL
 ## Detailed references
 | Topic | File |
 |-------|------|
+| End-of-session audit prompt | .claude/session-audit.md |
 | Pre-build setup & API verification | .claude/setup.md |
 | Database schema | .claude/schema.md |
 | Design system | .claude/design.md |
@@ -214,6 +215,9 @@ npm test
 npm run test:coverage
 npm run build
 ```
+
+Once the four gates pass, run the session audit in `.claude/session-audit.md` (a structured
+self-review of this session's diff against the rules + phase spec) before committing.
 
 Update PROGRESS.md before closing. Commit only after all four pass.
 
