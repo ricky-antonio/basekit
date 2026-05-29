@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Inter, JetBrains_Mono } from "next/font/google"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "react-hot-toast"
+import TopProgressBar from "@/components/layout/TopProgressBar"
 import "./globals.css"
 
 const inter = Inter({
@@ -41,6 +42,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <TopProgressBar />
           {children}
           <Toaster
             position="bottom-right"

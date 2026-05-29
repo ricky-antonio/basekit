@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { useTheme } from "next-themes"
-import { IconSun, IconMoon, IconSettings, IconLogout, IconUser } from "@tabler/icons-react"
+import { IconSun, IconMoon, IconSettings, IconLogout, IconUser, IconLoader2 } from "@tabler/icons-react"
+import { startTopProgress } from "@/components/layout/TopProgressBar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -34,6 +35,7 @@ export default function Topbar({ workspaceName, displayName, avatarUrl }: Topbar
 
   async function handleSignOut() {
     setSigningOut(true)
+    startTopProgress()
     try {
       await signOutAction()
       // redirect throws; this line is only reached on unexpected failure
@@ -116,10 +118,19 @@ export default function Topbar({ workspaceName, displayName, avatarUrl }: Topbar
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             style={{ color: "var(--text-secondary)" }}
-            onClick={handleSignOut}
+            onSelect={(event) => {
+              // Keep the menu open so the "Signing out…" spinner is visible during
+              // the Server Action + redirect, instead of closing into a silent wait.
+              event.preventDefault()
+              void handleSignOut()
+            }}
             disabled={signingOut}
           >
-            <IconLogout size={15} aria-hidden="true" />
+            {signingOut ? (
+              <IconLoader2 size={15} aria-hidden="true" className="animate-spin" />
+            ) : (
+              <IconLogout size={15} aria-hidden="true" />
+            )}
             {signingOut ? "Signing out…" : "Sign out"}
           </DropdownMenuItem>
         </DropdownMenuContent>

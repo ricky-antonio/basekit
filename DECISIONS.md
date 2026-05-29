@@ -234,3 +234,14 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 **Date:** 2026-05-29
 
 ---
+
+## Custom top progress bar (no dependency) for route transitions
+**Decision:** A small client component (`components/layout/TopProgressBar.tsx`) in the root layout renders a thin (2px) teal top progress bar with a soft glow + gentle pulse during route transitions. It starts on same-origin anchor clicks, `popstate`, or a programmatic `startTopProgress()` event (used by sign-out, which is a Server Action + redirect rather than an anchor click), trickles, and completes when `usePathname()` changes — with a **120ms reveal delay** so instant/cached navigations never flash. No third-party loader library.
+**Why:** The perceived "hang" when switching views is the Server Component navigation round-trip; a top bar is the conventional "something is happening" signal. The codebase already uses `<Link>` for all nav and bans `router.push()`, so intercepting same-origin anchor clicks reliably covers every transition without a dependency (~110 lines). The 120ms delay implements the requirement "show it any time loading is not instant." Colour is `var(--primary)` so it is theme-aware (teal on light + dark); z-index uses a new `--z-progress: 100` token (above all app chrome).
+**Alternatives rejected:**
+- `nextjs-toploader` / `@bprogress/next` — battle-tested but adds a runtime dependency for what the no-`router.push` constraint lets us do reliably in-house; also keeps `npm audit` surface smaller.
+- `useLinkStatus()` (Next 15.3) — scoped to a single `<Link>`; can't drive one global top bar without wrapping every nav link.
+- App Router "router events" — there is no global `routeChangeStart` equivalent; start must be inferred from click/popstate.
+**Date:** 2026-05-29
+
+---
