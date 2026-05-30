@@ -340,3 +340,53 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 - `revalidateTag` per the task list — would be dead code given the reads aren't cache-tagged.
 - No invalidation at all — technically fine for dynamic pages, but `revalidatePath` is cheap insurance and documents intent.
 **Date:** 2026-05-29
+
+---
+
+## Checkout route rejects already-subscribed workspaces (409 → portal)
+**Decision:** `POST /api/billing/checkout` calls `getActivePlan(workspaceId)` and, if it isn't `'free'`, returns **409** with a message telling the user to use "Manage billing" — it does not create a Checkout session. `createCheckoutSession` itself is left unguarded (it's a thin Stripe wrapper).
+**Why:** This is the hard requirement carried from the 2.1 post-hardening audit: `createCheckoutSession` will happily create a **second** Stripe subscription for a workspace that already has an active paid one, and the webhook only upserts our single row — so the first subscription keeps billing → double-charge. Gating on `getActivePlan !== 'free'` (status-aware: `canceled`/`incomplete`/`unpaid` collapse to free, so re-subscribe after cancel still works) is the correct guard. Paid-tier plan changes go through the Stripe Customer Portal, never a second Checkout.
+**Alternatives rejected:**
+- Guard inside `createCheckoutSession` — it's a reusable primitive; the policy belongs at the route boundary where `getActivePlan` is already in scope.
+- A dedicated `CONFLICT` ApiErrorCode — the enum has no `CONFLICT`; reused `VALIDATION_ERROR` with a 409 status. (Note: code/status mismatch is intentional and documented; add `CONFLICT` if a second conflict case appears.)
+**Date:** 2026-05-29
+
+---
+
+## Billing lives at `/settings/billing`; nav active-state uses an `excludePrefix`
+**Decision:** The billing page is `app/(app)/settings/billing/page.tsx`. The Sidebar/MobileNav "Billing" item points at `/settings/billing` (was the temporary top-level `/billing` stub, now deleted). The "Settings" nav item (which matches `/settings`) carries an `excludePrefix: "/settings/billing"` so that being on the billing page highlights **Billing**, not **Settings**.
+**Why:** The 2.2 manual-verification notes flagged two billing URLs that disagreed: the `UpgradePrompt` CTA + the 2.3 spec target `/settings/billing` (which 404'd), while the nav pointed at the orphan `/billing` stub. Consolidating on the canonical `/settings/billing` fixes the 404 and the dead stub. But once Billing is a child of `/settings`, the existing `pathname.startsWith("/settings")` rule would light up **both** nav items on the billing page — `excludePrefix` resolves the overlap without special-casing.
+**Alternatives rejected:**
+- Keep Billing at top-level `/billing` with its own page — diverges from the spec/architecture doc and the `UpgradePrompt`'s `upgradeUrl` default.
+- Reorder nav so the most-specific match wins — fragile; an explicit exclude is clearer and local to the data.
+**Date:** 2026-05-29
+
+---
+
+## `PricingTable` routes paid users to the portal, never a second Checkout
+**Decision:** In `PricingTable`, only **free** users get an active "Upgrade to …" CTA. For a paid user, every non-current tier renders a **disabled** "Manage in billing portal" button instead of an enabled Checkout CTA.
+**Why:** With the checkout-route 409 guard in place, a paid user clicking "Upgrade to Enterprise" would get an error toast — a broken-feeling flow. Paid-tier plan changes are a Stripe Customer Portal concern (the page's "Manage billing" button sits directly above the table). Disabling + relabeling makes the intended path obvious and prevents the dead-end click. The component stays presentational (it's reused on the Phase 5 landing page, where there's no portal), so it doesn't own portal-fetch logic.
+**Alternatives rejected:**
+- Leave the buttons enabled and let the 409 toast educate the user — a deliberately broken click is poor UX.
+- Have `PricingTable` open the portal itself — couples a presentational, landing-reused component to authenticated billing state.
+**Date:** 2026-05-29
+
+---
+
+## Solid-fill + plan-accent color tokens; `--bg-subtle` was never defined
+**Decision:** Added `--warning-solid`/`--danger-solid` (progress-bar fills) and `--accent-indigo`/`--accent-indigo-soft` (Enterprise plan badge) to both light and dark blocks in `globals.css`, and replaced an accidental `--bg-subtle` (which does not exist) with `--bg-surface-hover` across the new billing components.
+**Why:** `design.md` forbids hardcoded hex in components, but the existing semantic palette only offers `bg/text/border` triples — none of which is a solid fill for a progress bar or a distinct Enterprise accent. Rather than hardcode `#f59e0b`/`#ef4444`/indigo, these get first-class tokens that also adapt to dark mode (brighter fills on the dark track). The `--bg-subtle` references were a genuine bug introduced this session: an undefined CSS variable renders no background, so the usage-bar tracks and free-plan badges would have been invisible.
+**Alternatives rejected:**
+- Hardcode the hex values — violates design.md and doesn't adapt to dark mode (the past-due alert's dark-brown text was unreadable on a dark surface).
+- Reuse `--warning-text`/`--danger-text` for the fills — those are dark/desaturated for text legibility, not for a solid bar fill.
+**Date:** 2026-05-29
+
+---
+
+## Billing timestamps: store ISO (timestamptz), parse as dates in UI; period from invoice LINE not top-level
+**Decision:** The `subscriptions` time columns (`current_period_start/end`, `trial_end`) are Postgres `timestamptz`; the webhook writes ISO strings via `toIso()` and Supabase returns them as ISO strings (e.g. `2026-06-30T07:34:13+00:00`). UI code parses them with `new Date(value)` directly (NOT `new Date(Number(value) * 1000)`). Separately, `invoice.payment_succeeded` derives `current_period_end` from the **furthest invoice line period** (`lines.data[].period.end`), never the invoice's top-level `period_end`.
+**Why:** Both were real bugs caught in the Phase 2 live verification, neither caught by unit tests (the tests asserted the wrong assumption — unix-seconds fixtures). (1) `BillingCard` treated the ISO string as unix-seconds → `Number("2026-…")` = `NaN` → "Invalid Date" on the cancel banner / trial countdown. (2) A subscription's **first invoice** has a zero-length top-level period (`period_start == period_end == creation time`), so reading `invoice.period_end` clobbered the correct period end (written by `customer.subscription.created`) with the creation timestamp — the cancel banner would show today's date instead of the real period end. The line period reflects the true billing window; taking the max across lines handles proration invoices with multiple lines.
+**Alternatives rejected:**
+- Store unix-seconds (bigint) instead of timestamptz — would make the columns non-human-readable in SQL and diverge from every other timestamp column in the schema.
+- Read the subscription item period inside `invoice.payment_succeeded` via an extra `stripe.subscriptions.retrieve` — correct but adds an API call per invoice; the line period is already on the event payload.
+**Date:** 2026-05-30

@@ -78,12 +78,20 @@ describe("subscriptionEventSchema", () => {
 })
 
 describe("invoiceEventSchema", () => {
-  it("parses customer and period_end", () => {
-    const parsed = invoiceEventSchema.safeParse({ customer: "cus_1", period_end: 5000 })
+  it("parses customer and line period ends", () => {
+    const parsed = invoiceEventSchema.safeParse({
+      customer: "cus_1",
+      lines: { data: [{ period: { end: 5000 } }] },
+    })
     expect(parsed.success).toBe(true)
     if (parsed.success) {
       expect(parsed.data.customer).toBe("cus_1")
-      expect(parsed.data.period_end).toBe(5000)
+      expect(parsed.data.lines?.data[0]?.period?.end).toBe(5000)
     }
+  })
+
+  it("parses when lines are absent", () => {
+    const parsed = invoiceEventSchema.safeParse({ customer: "cus_1" })
+    expect(parsed.success).toBe(true)
   })
 })

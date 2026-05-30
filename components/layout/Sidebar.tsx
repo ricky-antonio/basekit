@@ -8,18 +8,35 @@ import {
   IconUsers,
   IconCreditCard,
   IconSettings,
+  type TablerIcon,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 
-const navItems = [
+interface NavItem {
+  href: string
+  match: string
+  /** When the current path starts with this prefix the item is NOT highlighted. */
+  excludePrefix?: string
+  label: string
+  icon: TablerIcon
+}
+
+const navItems: NavItem[] = [
   { href: "/dashboard", match: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
   { href: "/projects", match: "/projects", label: "Projects", icon: IconFolder },
   { href: "/team", match: "/team", label: "Team", icon: IconUsers },
-  { href: "/billing", match: "/billing", label: "Billing", icon: IconCreditCard },
-  { href: "/settings/profile", match: "/settings", label: "Settings", icon: IconSettings },
-] as const
+  { href: "/settings/billing", match: "/settings/billing", label: "Billing", icon: IconCreditCard },
+  {
+    href: "/settings/profile",
+    match: "/settings",
+    excludePrefix: "/settings/billing",
+    label: "Settings",
+    icon: IconSettings,
+  },
+]
 
-function isItemActive(pathname: string, match: string): boolean {
+function isItemActive(pathname: string, match: string, excludePrefix?: string): boolean {
+  if (excludePrefix && pathname.startsWith(excludePrefix)) return false
   return pathname === match || pathname.startsWith(`${match}/`)
 }
 
@@ -72,8 +89,8 @@ export default function Sidebar({ workspaceName }: SidebarProps) {
 
       {/* Nav items */}
       <nav className="flex-1 px-2 pb-4 space-y-0.5" role="navigation">
-        {navItems.map(({ href, match, label, icon: Icon }) => {
-          const isActive = isItemActive(pathname, match)
+        {navItems.map(({ href, match, excludePrefix, label, icon: Icon }) => {
+          const isActive = isItemActive(pathname, match, excludePrefix)
           return (
             <Link
               key={href}

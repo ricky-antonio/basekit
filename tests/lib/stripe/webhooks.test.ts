@@ -175,16 +175,24 @@ describe("invoice.payment_failed", () => {
 })
 
 describe("invoice.payment_succeeded", () => {
-  it("updates current_period_end without touching status", async () => {
+  it("updates current_period_end from the furthest line period, not the invoice top-level", async () => {
     mockSupabaseFrom("subscriptions", { data: { workspace_id: workspaceId }, error: null })
 
-    await handleStripeEvent(event("invoice.payment_succeeded", { customer: "cus_1", period_end: 5000 }))
+    // The top-level period_end is the zero-length first-invoice period; the real billing
+    // window lives on the line period — the handler must use the line, taking the max.
+    await handleStripeEvent(
+      event("invoice.payment_succeeded", {
+        customer: "cus_1",
+        period_end: 1000,
+        lines: { data: [{ period: { end: 1000 } }, { period: { end: 5000 } }] },
+      }),
+    )
 
     const write = getLastWrite("subscriptions", "update")
     expect(write?.payload).toEqual({ current_period_end: new Date(5000 * 1000).toISOString() })
   })
 
-  it("does not write when there is no period_end", async () => {
+  it("does not write when there is no line period end", async () => {
     mockSupabaseFrom("subscriptions", { data: { workspace_id: workspaceId }, error: null })
 
     await handleStripeEvent(event("invoice.payment_succeeded", { customer: "cus_1" }))

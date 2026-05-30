@@ -269,7 +269,12 @@ async function handleInvoicePaymentSucceeded(supabase: ServiceClient, raw: unkno
   const workspaceId = await resolveWorkspaceId(supabase, undefined, refToId(parsed.data.customer))
   if (!workspaceId) return skip("invoice.payment_succeeded (no workspace)", {})
 
-  const periodEnd = toIso(parsed.data.period_end)
+  // The subscription's current period end is the furthest line-period end on the invoice
+  // (the top-level invoice period is zero-length on the first invoice — Stripe gotcha).
+  const lineEnds = (parsed.data.lines?.data ?? [])
+    .map((line) => line.period?.end)
+    .filter((end): end is number => typeof end === "number")
+  const periodEnd = lineEnds.length ? toIso(Math.max(...lineEnds)) : null
   if (!periodEnd) return
 
   // Only refresh the billing period. Status transitions (past_due → active on

@@ -67,9 +67,17 @@ export const subscriptionEventSchema = z.object({
   }),
 })
 
+// Read the billing period from the invoice LINE period, not the invoice's top-level
+// `period_end`: for a subscription's first invoice the top-level period is zero-length
+// (start == end == creation time), whereas the line period reflects the real billing
+// window. Multiple lines (proration) can appear, so the handler takes the furthest end.
 export const invoiceEventSchema = z.object({
   customer: idRef.nullish(),
-  period_end: z.number().nullish(),
+  lines: z
+    .object({
+      data: z.array(z.object({ period: z.object({ end: z.number().nullish() }).nullish() })),
+    })
+    .nullish(),
 })
 
 export type CheckoutSessionPayload = z.infer<typeof checkoutSessionSchema>

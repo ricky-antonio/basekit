@@ -3,22 +3,29 @@
 ---
 
 ## Current phase
-Phase 2 — Billing + Webhooks + Usage (in progress)
+Phase 2 — Billing + Webhooks + Usage — **COMPLETE** (all 3 checkpoints + full manual
+verification done; ready for Phase 3 after commit)
 
 ## Current checkpoint
-Checkpoint 2.2 — Projects domain end-to-end — **code-complete, all 4 checks green,
-session audit run + resolved**. Built: projects lib (`list/get/create/delete` with
-LIMIT_EXCEEDED gate + owner/admin delete check), create-project validation, the
-`/projects` list (+ usage summary + skeleton), `/projects/new` (form → redirect),
-`/projects/[id]` (detail + delete via ConfirmDialog), `UpgradePrompt`, a `projectWrite`
-limiter, and the dashboard wired to real project/member counts. 245 tests pass; coverage
-85.95/76.85/90.42/88.56 (> Phase 2 thresholds 75/70/75/75). Audit 🟠 fixed (dashboard
-badge now uses status-aware `getActivePlan`). **Manual browser verification still pending**
-(see 2.2 closeout → Deferred), as is the carried-over 2.1 `stripe listen`/live-DB check.
-Next: Checkpoint 2.3 (billing API routes + billing settings page) — after the user
-confirms commit + clears context.
+Checkpoint 2.3 — Billing API routes + billing settings page — **COMPLETE: code + session
+audit + full live manual verification (10/10) all done, all 4 gates green.** Built: the 3
+billing API routes (`/api/billing/checkout` with the **already-subscribed 409 guard**,
+`/portal`, `/cancel` with owner check), `/settings/billing` page (BillingCard + 2× UsageBar +
+past-due alert + PricingTable + BillingActions + upgraded-toast), and the `PlanBadge`/`UsageBar`/
+`BillingCard`/`PricingTable` components; nav reconciled to `/settings/billing` (orphan stub
+deleted; `excludePrefix` active-state fix). The **full browser upgrade lifecycle is verified
+live** (see "Phase 2 manual verification — 2026-05-30"): free→Pro Checkout→webhook→Pro→portal→
+cancel→past-due→rate-limit→mobile, RLS 14/14. **4 real bugs were caught + fixed during the live
+pass** (none caught by unit tests, which had wrong assumptions): BillingCard parsed ISO
+timestamps as unix-seconds; `invoice.payment_succeeded` used the invoice's zero-length top-level
+period instead of the line period; `UpgradedToast` double-fired under Strict Mode; portal/checkout
+buttons reset loading after redirect (label flash). 276 tests pass; coverage 83.67/76.8/87.93/86.54
+(> 75/70/75/75). **Phase 2 is shippable.** Next: commit, then Phase 3 — after the user confirms +
+clears context.
 
 ## Completed
+- [2026-05-30] Phase 2 manual verification — full billing lifecycle verified live (Checkout→webhook→Pro→portal→cancel→past-due→rate-limit 429→mobile; RLS 14/14); found + fixed 4 date/UX bugs; all 4 gates green. (See "Phase 2 manual verification — 2026-05-30" below.)
+- [2026-05-29] Phase 2.3 — Billing API routes + billing settings page (3 routes incl. checkout 409 guard, /settings/billing page, PlanBadge/UsageBar/BillingCard/PricingTable, nav reconciliation). (See "Checkpoint 2.3 closeout — 2026-05-29" below.)
 - [2026-05-29] Phase 2.2 — Projects domain end-to-end (lib + pages + UpgradePrompt + dashboard wiring; manual browser verification deferred). (See "Checkpoint 2.2 closeout — 2026-05-29" below.)
 - [2026-05-29] Phase 2.1 — Stripe lib + webhook handler + usage enforcement (code-complete; manual `stripe listen`/live-DB verification deferred). (See "Checkpoint 2.1 closeout — 2026-05-29" below.)
 - [2026-05-28] Phase 1 verification — live RLS (14/14 via real JWTs), found+fixed a `service_role` table-grant bug, external-service connectivity confirmed, all 4 checks green. (See "Phase 1 verification — 2026-05-28" below.)
@@ -27,7 +34,7 @@ confirms commit + clears context.
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- _(none in code)_ — Phase 2.2 is code-complete, all 4 checks pass, and **manual verification is done** (see "Phase 2 manual verification — 2026-05-29"): projects CRUD + usage limit + plan gating + dashboard + UX/a11y all ✅ in the browser; the 2.1 webhook engine ✅ via `stripe listen` (signature 400, valid-event 200, idempotency, rate-limit 429); RLS **14/14** re-verified on `projects`/`usage`. Only two items remain deferred — per-event webhook DB writes (→ 2.3 real Checkout) and non-owner/admin delete (→ Phase 3 needs a 2nd member). Next code work: Checkpoint 2.3 (billing API routes + billing settings page) — **must** guard already-subscribed workspaces in the checkout route + reconcile the billing routes (see Known issues / Phase 2 entry notes). Resend domain verification still needed before Phase 3 (see Known issues).
+- _(none)_ — **Phase 2 is complete.** All three checkpoints (2.1 engine, 2.2 projects, 2.3 billing UI) are code-complete, audited, and the full billing lifecycle is verified live (see "Phase 2 manual verification — 2026-05-30"). 4 bugs found + fixed during the live pass. All 4 gates green (276 tests; coverage 83.67/76.8/87.93/86.54). **Pending: commit this work**, then begin Phase 3 — Team + Invitations + Email. Before Phase 3.1: **verify a Resend domain** (or use the sandbox sender) — see Known issues. At Phase 3 start, raise coverage thresholds to 78/78/73/78 per testing.md.
 
 ## Phase 2 — entry notes (read before Checkpoint 2.1)
 Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-ready, no blockers**: `subscriptions` has all Stripe columns + `updated_at` trigger + `unique(workspace_id)`/`unique(stripe_customer_id)`; `usage` has `unique(workspace_id, resource)` + `count >= 0` with `increment_usage` (upsert) / `decrement_usage` (clamps at 0); `projects` RLS = member insert/select/update + owner/admin-only delete; `stripe_events` = `id`/`type`/`processed_at` (no RLS); `service_role` grants fixed; `usage_select_members` exists so enforcement reads don't fail open. Watch-items:
@@ -46,11 +53,11 @@ Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-read
 **Dashboard (defer to 2.2)**
 - `app/(app)/dashboard/page.tsx` hard-codes the "No projects yet" EmptyState and omits the member count the 1.3 spec mentioned. Wire it to real project/usage data when 2.2 builds the projects domain.
 
-**Checkout guard (2.3 — hard requirement, from the 2.1 audit)**
-- The `/api/billing/checkout` route MUST refuse to create a session when the workspace already has an active paid subscription (`getActivePlan !== 'free'`) — redirect to the portal instead. `createCheckoutSession` itself does not guard this, so calling it for an existing subscriber creates a **second** Stripe subscription that keeps billing (double-charge). See the 2.1 closeout → "Post-hardening audit".
+**Checkout guard (2.3 — hard requirement, from the 2.1 audit) — ✅ DONE in 2.3**
+- `/api/billing/checkout` now refuses (409 → "use Manage billing") when `getActivePlan !== 'free'`, so it can't create a second double-billing Stripe subscription. Tested. See DECISIONS → "Checkout route rejects already-subscribed workspaces".
 
-**Billing route reconciliation (2.3 — found during 2.2 manual verification)**
-- There are currently **two** billing URLs that disagree: the `UpgradePrompt` CTA (and the 2.3 spec/architecture doc) target the canonical `/settings/billing`, which does **not** exist yet (clicking Upgrade 404s into the settings shell); the Sidebar + MobileNav "Billing" items still point at the temporary 1.3 stub at top-level `/billing`. When 2.3 builds `app/(app)/settings/billing/page.tsx`, it must also (a) repoint `components/layout/Sidebar.tsx` + `components/layout/MobileNav.tsx` "Billing" from `/billing` → `/settings/billing`, and (b) delete the orphan `app/(app)/billing/page.tsx` stub (or make it redirect). Easy to miss because the stub "works."
+**Billing route reconciliation (2.3 — found during 2.2 manual verification) — ✅ DONE in 2.3**
+- Resolved: nav "Billing" repointed `/billing` → `/settings/billing` in Sidebar + MobileNav, the orphan `app/(app)/billing/page.tsx` stub deleted, and a nav `excludePrefix` added so the billing page highlights Billing (not Settings). See DECISIONS → "Billing lives at `/settings/billing`".
 
 **External setup to verify (not code)**
 - 2.1: run `stripe listen --forward-to localhost:3000/api/webhooks/stripe`; set `STRIPE_WEBHOOK_SECRET` to the **dynamic secret `stripe listen` prints** (the dashboard value currently in `.env.local` may differ for local dev).
@@ -60,7 +67,8 @@ Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-read
 
 ## Known issues
 - **Phase 2.1 webhook flow is code-complete but unverified against live Stripe** — needs a manual `stripe listen` + live-DB session (see Checkpoint 2.1 closeout → Deferred). `lib/email.ts` ships as **stubs** (no real email sent until Phase 3.1). `stripe trigger` fixtures skip gracefully (no workspace mapping) unless a `metadata.workspaceId` override is added.
-- **2.3 checkout MUST guard already-subscribed workspaces** (from the 2.1 audit) — `createCheckoutSession` does not, so the 2.3 route has to reject/redirect-to-portal when `getActivePlan !== 'free'` or it can create a duplicate, double-billing Stripe subscription. Full deferred-findings list in Checkpoint 2.1 closeout → "Post-hardening audit".
+- ~~**2.3 checkout MUST guard already-subscribed workspaces**~~ — **RESOLVED in 2.3**: the checkout route returns 409 → portal when `getActivePlan !== 'free'` (tested). See DECISIONS → "Checkout route rejects already-subscribed workspaces". (Other 2.1 deferred findings remain in Checkpoint 2.1 closeout → "Post-hardening audit".)
+- ~~**Phase 2 not yet shippable — full browser upgrade lifecycle unverified**~~ — **RESOLVED 2026-05-30**: full lifecycle verified live (Checkout→webhook→Pro→portal→cancel→past-due→rate-limit 429→mobile, RLS 14/14). Customer Portal was already configured. See "Phase 2 manual verification — 2026-05-30".
 - `npm audit` reports a moderate-severity `postcss` XSS advisory pulled in transitively via Next 15. **Accepted, not fixed** — see DECISIONS.md → "Accepted postcss XSS advisory (transitive via Next 15)". Not exploitable in our context (we author all CSS); the upstream fix requires Next 16.3+. Re-evaluate when we revisit Next 16.
 - **Resend has zero verified domains** — the API key is valid but no domain is verified, so email sends from a custom `FROM_EMAIL` will be rejected; only Resend's sandbox-to-self works. Not a Phase 1 blocker (email lands in Phase 3). Verify a domain (or use the sandbox sender) before Phase 3.1.
 - **`service_role` table grants were missing** (found + fixed during Phase 1 verification) — see "Phase 1 verification" below + DECISIONS.md → "Explicit table grants for SQL-Editor-created tables". Resolved; flagged here for the audit trail.
@@ -89,6 +97,44 @@ After the scaffold installed, three known issues were addressed in the same Clau
 - **postcss XSS advisory:** accepted, not fixed (see Known issues + DECISIONS.md).
 
 Last known-good build: `npm run build` → clean (zero TS errors, zero lint warnings, 5 routes generated).
+
+---
+
+## Phase 2 manual verification — 2026-05-30
+
+Closed the deferred 2.3 deliverable: the **full billing upgrade lifecycle**, driven live
+against dev server + live Supabase + `stripe listen` + the (already-configured) Stripe
+Customer Portal, with the test account `rickyantonio.codes@gmail.com`. Paired session —
+user drove the browser, the build verified webhook stream + live DB at each step.
+
+### Lifecycle (10/10 ✅)
+- ✅ **Free billing page** — Free badge, $0/mo, usage bars 2/3 projects + 1/1 members, PricingTable with monthly/annual toggle (prices flip $29↔$23, $99↔$79)
+- ✅ **Upgrade → Stripe Checkout** — "Upgrade to Pro" redirects to hosted Checkout
+- ✅ **Test card `4242…` → return** — lands on `/settings/billing?upgraded=true`, single "Welcome to Pro" toast, URL param stripped
+- ✅ **Webhook cascade** — `checkout.session.completed` + `customer.subscription.created` + `invoice.payment_succeeded` (+5 more) all forwarded and `200`
+- ✅ **DB after upgrade** — `plan_name=pro`, `status=active`, `stripe_customer_id`/`stripe_subscription_id`/`stripe_price_id` all populated; Projects → Unlimited, Members 1/10
+- ✅ **Paid-user PricingTable** — Pro = "Current plan", Free/Enterprise = disabled "Manage in billing portal" (the 2.3 audit fix, confirmed live — no 409 dead-ends)
+- ✅ **Manage billing** — opens Stripe Customer Portal for the correct customer (`cus_…`); button stays "Redirecting…" (loading-flash fixed)
+- ✅ **Cancel via portal** — `customer.subscription.updated` → `200`; DB `cancel_at_period_end=true`, `current_period_end` self-healed to `2026-06-30`; UI shows **"Cancels on June 30, 2026"** (correct date, proving both date fixes)
+- ✅ **Past-due alert** — with `status=past_due` the amber warning banner renders readable (dark-mode-safe `--warning-*` tokens); restored to `active` after
+- ✅ **Checkout rate limit** — 12 authed POSTs: #1–10 → `409` (limiter passes, then already-subscribed guard), #11–12 → `429` (10/min enforced at the boundary)
+- ✅ **Mobile** (iPhone 14 Pro Max) — no horizontal overflow, bottom nav with Billing active, full-width cards, plan cards stack vertically, all tappable
+- ✅ **RLS** — `scripts/rls-verify.mjs` → **14/14 PASS** (B cannot read A's `subscriptions`/`usage`/etc.; anon blocked)
+
+### Bugs found + fixed during the live pass (4 — none caught by unit tests)
+1. **`BillingCard` parsed ISO timestamps as unix-seconds** (`new Date(Number(iso)*1000)`) → "Invalid Date" on the cancel/trial dates. Columns are `timestamptz` → ISO strings; now parsed with `new Date(value)`. (Unit test had unix-seconds fixtures, masking it.)
+2. **`invoice.payment_succeeded` wrote the invoice's top-level `period_end`** — zero-length on a first invoice (== creation time) — clobbering the correct `current_period_end`. Now reads the furthest **line** period (`lines.data[].period.end`). See DECISIONS → "Billing timestamps…".
+3. **`UpgradedToast` double-fired** under React Strict Mode → two toasts. Now fires once (ref guard + stable toast `id`) and strips `?upgraded=true` via `router.replace`.
+4. **Portal + checkout buttons reset loading after `window.location.href`** → "Redirecting…" flashed back to the label before navigation. Now reset loading only on the failure paths (matches the CLAUDE.md redirect-button rule + the 2.2 ConfirmDialog fix).
+
+Plus polish fixes requested in-session on the settings sub-nav (a 1.3 component): kept the single-row horizontal scroll on mobile but added a **right-edge fade mask** so clipped items (e.g. "Danger zone") cue that you can scroll (a wrap-to-two-rows attempt looked cluttered and was reverted); and gave **"Danger zone"** a red treatment via the semantic `--danger-text`/`--danger-bg` tokens (text label retained, so not color-only).
+
+### Gates after fixes (all green)
+- type-check ✅ 0 errors · test ✅ **276 passed** (36 files) · coverage ✅ **83.67 / 76.8 / 87.93 / 86.54** (> 75/70/75/75) · build ✅ 25 routes
+- New/changed tests: `tests/components/UpgradedToast.test.tsx` (new, 2), `tests/components/BillingCard.test.tsx` (ISO fixtures), `tests/lib/stripe/webhooks.test.ts` + `tests/lib/validation/billing.test.ts` (invoice line-period). Added `scripts/check-billing-state.mjs` (billing-state inspector).
+
+### Test-account state left behind (test mode)
+The test workspace now has a real Pro subscription set to **cancel at period end (June 30, 2026)**; a stray errored draft invoice exists from the past-due fixture attempt (harmless). Re-activate via the portal if a clean Pro state is wanted for future demos.
 
 ---
 
@@ -189,6 +235,82 @@ Verified via `scripts/rls-verify.mjs` (new) — a reproducible form of setup.md 
 
 _(Appended chronologically as checkpoints complete. Newest at the top.
 Each closeout follows the 8-item template defined in CLAUDE.md → Checkpoint protocol.)_
+
+## Checkpoint 2.3 closeout — 2026-05-29
+
+### 1. Planned vs delivered
+
+**API routes**
+- ✅ `app/api/billing/checkout/route.ts` — auth → rate-limit (`billingCheckout`) → workspace → Zod (`checkoutBodySchema`) → **already-subscribed 409 guard** (`getActivePlan !== 'free'`) → `createCheckoutSession` → `{ url }`
+- ✅ `app/api/billing/portal/route.ts` — auth → rate-limit (`billingPortal`) → workspace → Zod (`portalBodySchema`) → requires `stripe_customer_id` (400 if free) → `createPortalSession` → `{ url }`
+- ✅ `app/api/billing/cancel/route.ts` — auth → rate-limit (`billingCancel`) → **owner check (403)** → `stripe.subscriptions.update({ cancel_at_period_end: true })` → `logActivity("subscription.canceled")` → `revalidatePath`
+
+**Billing UI**
+- ✅ `components/billing/PlanBadge.tsx` — free/pro/enterprise pill (text label, not color-only)
+- ✅ `components/billing/UsageBar.tsx` — used/total or "Unlimited"; brand → amber (≥80%) → red (100%) via `data-state` + tokenized fills
+- ✅ `components/billing/PricingTable.tsx` — 3 columns, monthly/annual toggle, "Most popular" on Pro, Checkout CTA (free users only — paid users routed to portal)
+- ✅ `components/billing/BillingCard.tsx` — current plan + price (monthly/annual detected from `stripe_price_id`) + trial countdown + "Cancels on [date]" banner
+- ✅ `app/(app)/settings/billing/page.tsx` — past-due alert + BillingCard + 2× UsageBar + BillingActions + PricingTable + `?upgraded=true` toast
+
+**Extra (needed for the work, not in the task list)**
+- ✅ `BillingActions.tsx` (Manage billing + Cancel via ConfirmDialog) and `UpgradedToast.tsx` — page-local client components
+- ✅ Nav reconciliation: Sidebar/MobileNav "Billing" → `/settings/billing`; orphan `app/(app)/billing/page.tsx` deleted; `excludePrefix` active-state fix
+- ✅ `globals.css` tokens: `--warning-solid`/`--danger-solid`/`--accent-indigo`/`--accent-indigo-soft` (light + dark)
+
+### 2. In plain English (delivered)
+
+The billing engine from 2.1 now has a face. `/settings/billing` shows the current plan, price, usage bars (projects + members), and the right actions for the plan: free users see a `PricingTable` with active "Upgrade" CTAs that POST to `/api/billing/checkout` and redirect to Stripe Checkout; paid users see "Manage billing" (opens the Stripe Customer Portal) and "Cancel subscription" (confirmation dialog → `/api/billing/cancel`, which schedules cancel-at-period-end and logs it). The checkout route refuses to start a second subscription for an already-paying workspace (409 → use the portal), closing the double-charge gap flagged in the 2.1 audit. Returning from a successful Checkout (`?upgraded=true`) fires a "Welcome to Pro" toast. A `past_due` subscription shows a warning banner. The temporary top-level `/billing` stub is gone and the nav points at the canonical `/settings/billing`. **No live Stripe flow has been exercised yet** — that's the deferred manual step that closes Phase 2.
+
+### 3. Done-when verification
+
+- ✅ Checkout route refuses already-subscribed workspace (409) — `tests/api/billing-checkout.test.ts`
+- ✅ Checkout returns URL / passes workspaceId+email / 401 / 429 / 400 (missing + unknown price) — same file (7 cases)
+- ✅ Portal: 401 / 400-when-no-customer / URL-on-success — `tests/api/billing-portal.test.ts` (3 cases)
+- ✅ Cancel: 401 / 403-non-owner / `cancel_at_period_end:true` / logs `subscription.canceled` — `tests/api/billing-cancel.test.ts` (4 cases)
+- ✅ `UsageBar` used/total, Unlimited, warning/full states — `tests/components/UsageBar.test.tsx` (5)
+- ✅ `BillingCard` plan+price, trial countdown, cancel-on date — `tests/components/BillingCard.test.tsx` (3)
+- ✅ `PricingTable` 3 cols, Most-popular, toggle prices, CTAs, annual subline, **paid-user→portal** — `tests/components/PricingTable.test.tsx` (6)
+- ✅ `npm run test:coverage` ≥ 75% — **Stmts 83.85% · Branches 76.83% · Funcs 87.71% · Lines 86.53%** (thresholds 75/70/75/75)
+- ✅ `npm run type-check` zero errors · `npm run build` zero errors, 25 routes (3 billing APIs + `/settings/billing`)
+- ✅ **Full browser upgrade lifecycle** (`4242…` → webhook → Pro → portal → cancel banner) — **VERIFIED LIVE 2026-05-30** (see "Phase 2 manual verification — 2026-05-30"); surfaced + fixed 4 bugs
+
+### 4. Test files added/changed
+
+- `tests/api/billing-checkout.test.ts` (new, 7 cases)
+- `tests/api/billing-portal.test.ts` (new, 3 cases)
+- `tests/api/billing-cancel.test.ts` (new, 4 cases)
+- `tests/components/UsageBar.test.tsx` (new, 5 cases)
+- `tests/components/BillingCard.test.tsx` (new, 3 cases)
+- `tests/components/PricingTable.test.tsx` (new, 6 cases — incl. paid-user→portal)
+
+### 5. New DECISIONS.md entries
+
+- Checkout route rejects already-subscribed workspaces (409 → portal)
+- Billing lives at `/settings/billing`; nav active-state uses an `excludePrefix`
+- `PricingTable` routes paid users to the portal, never a second Checkout
+- Solid-fill + plan-accent color tokens; `--bg-subtle` was never defined
+
+### 6. Deferred items
+
+- ✅ **Full Phase 2 manual verification** — **DONE 2026-05-30** (see "Phase 2 manual verification — 2026-05-30"): upgrade lifecycle, portal, cancel banner, past-due alert, rate-limit 429, mobile, RLS 14/14 all verified live; 4 bugs found + fixed. The only sub-item not exercised: **downgrade Pro→Enterprise via portal** (the cancel path was tested instead; plan-switch-via-portal is low-risk and covered by the `customer.subscription.updated` handler + its unit tests).
+- **In-app cancel banner is eventually-consistent** (🟠#3, deferred) — the in-app Cancel button updates Stripe only; the "Cancels on [date]" banner is set by the `customer.subscription.updated` webhook, which races `router.refresh()`, so it may appear only on a later reload. The toast sets expectations; the spec's canonical cancel path is the portal (which gives the webhook time). Optionally write `cancel_at_period_end=true` in the cancel route for immediate UI truth. Verify behavior in the manual session.
+- **Owner-gating on portal/checkout** — deferred to Phase 3 (not exploitable while free = 1 member). When Pro multi-member exists, decide whether non-owners may open the portal / start checkout.
+- **No `loading.tsx` skeleton for `/settings/billing`** — Phase 5 polish (4 server-side fetches; consistent with the page rendering fast and the rest of settings lacking per-page skeletons).
+
+### 7. Known issues
+
+- The 409 conflict reuses `code: "VALIDATION_ERROR"` with a 409 status (no `CONFLICT` in the `ApiErrorCode` enum) — intentional, documented in DECISIONS; add `CONFLICT` if a second conflict case appears.
+- Display prices are hardcoded in two places (`BillingCard` + `PricingTable`) and could drift from Stripe — acceptable per the v1 "plans hardcoded in `lib/plans.ts`" non-goal; annual math verified ($23/$79 = $276/$948 ÷ 12).
+- Monthly/annual toggle buttons are ~30px tall (under the 44px tap-target minimum) — minor mobile polish, Phase 5.
+- `BillingActions`, `UpgradedToast`, and `billing/page.tsx` have no automated coverage (client fetch flows + Server Component) — manual-only, consistent with how `Topbar`/client forms were handled in 1.2/1.3. Coverage passes comfortably without them.
+
+### 8. What surprised me
+
+`current_period_end`/`trial_end` are `bigint` columns, so Supabase returns them as **strings**, not numbers — `BillingCard`'s date math (`new Date(ts * 1000)`) only type-checks once you `Number()` them, and the test fixtures had to use string timestamps to match the real `Subscription` row type. Same shape-mismatch family as the 2.1 surprise (period fields living on the subscription *item*, not the subscription).
+
+### 9. Session audit (run before this closeout)
+
+Ran `.claude/session-audit.md` over the full session diff. **No 🔴.** Three 🟠 surfaced and the approved set was fixed: (1) hardcoded hex violated design.md and the past-due alert was unreadable in dark mode → added `--warning-solid`/`--danger-solid`/`--accent-indigo(-soft)` tokens and swapped all four files to semantic vars; (2) `PricingTable` offered enabled upgrade buttons to paid users that would 409 → now disabled "Manage in billing portal" (new test); (3) cancel-route dead `await request.text()` + misleading comment removed. **Bonus bug caught while fixing:** `--bg-subtle` (used in 4 places this session) is undefined in globals.css — would have rendered invisible usage-bar tracks and free-plan badges; swapped to `--bg-surface-hover`. 🟡 deferred with rationale: eventually-consistent in-app cancel banner (manual verify), owner-gating on portal/checkout (Phase 3), no billing `loading.tsx` (Phase 5), 409/VALIDATION_ERROR code mismatch (add `CONFLICT` on next case), small toggle tap-target (Phase 5), redundant subscription read on the billing page, hardcoded display prices, untested client components (manual-only). All four gates re-run green after the fixes (273 tests).
 
 ## Checkpoint 2.2 closeout — 2026-05-29
 
