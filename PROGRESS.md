@@ -27,7 +27,7 @@ confirms commit + clears context.
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- _(none in code)_ — Phase 2.2 is code-complete and all 4 checks pass. **Pending manual verification** (requires `npm run dev` + live DB): free user creates 3 projects, 4th shows `<UpgradePrompt />` inline; delete decrements usage + lets you create again; `/projects` skeleton shows with no empty flash; mobile usability; re-run RLS on `projects`/`usage`. Tracked in the 2.2 closeout → Deferred. Carried over from 2.1: the `stripe listen`/live-DB webhook verification. Next code work: Checkpoint 2.3 (billing API routes + billing settings page) — **must** guard already-subscribed workspaces in the checkout route (see Known issues). Resend domain verification still needed before Phase 3 (see Known issues).
+- _(none in code)_ — Phase 2.2 is code-complete, all 4 checks pass, and **manual verification is done** (see "Phase 2 manual verification — 2026-05-29"): projects CRUD + usage limit + plan gating + dashboard + UX/a11y all ✅ in the browser; the 2.1 webhook engine ✅ via `stripe listen` (signature 400, valid-event 200, idempotency, rate-limit 429); RLS **14/14** re-verified on `projects`/`usage`. Only two items remain deferred — per-event webhook DB writes (→ 2.3 real Checkout) and non-owner/admin delete (→ Phase 3 needs a 2nd member). Next code work: Checkpoint 2.3 (billing API routes + billing settings page) — **must** guard already-subscribed workspaces in the checkout route + reconcile the billing routes (see Known issues / Phase 2 entry notes). Resend domain verification still needed before Phase 3 (see Known issues).
 
 ## Phase 2 — entry notes (read before Checkpoint 2.1)
 Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-ready, no blockers**: `subscriptions` has all Stripe columns + `updated_at` trigger + `unique(workspace_id)`/`unique(stripe_customer_id)`; `usage` has `unique(workspace_id, resource)` + `count >= 0` with `increment_usage` (upsert) / `decrement_usage` (clamps at 0); `projects` RLS = member insert/select/update + owner/admin-only delete; `stripe_events` = `id`/`type`/`processed_at` (no RLS); `service_role` grants fixed; `usage_select_members` exists so enforcement reads don't fail open. Watch-items:
@@ -89,6 +89,36 @@ After the scaffold installed, three known issues were addressed in the same Clau
 - **postcss XSS advisory:** accepted, not fixed (see Known issues + DECISIONS.md).
 
 Last known-good build: `npm run build` → clean (zero TS errors, zero lint warnings, 5 routes generated).
+
+---
+
+## Phase 2 manual verification — 2026-05-29
+
+Ran the full Phase 2 (2.1 + 2.2) manual checklist against the live stack (dev server +
+live Supabase + Stripe CLI + Upstash).
+
+### Projects domain + usage (2.2 — browser)
+- ✅ CRUD: create (with/without description), list, detail, delete, validation bounds
+- ✅ Usage limit: free user blocked at the 4th project, `<UpgradePrompt />` renders inline; delete decrements and releases the limit
+- ✅ Plan gating (DB flip): `plan_name='pro'` + `status='active'` → unlimited + Pro badge; `status='canceled'` → reverts to Free limits + badge — confirms the status-aware `getActivePlan` audit fix **live**
+- ✅ Dashboard: real project + member counts (member=1 seed correct), Recent projects + View all
+- ✅ UX/a11y: "Creating…"/"Processing…" loading, Escape closes the delete dialog, keyboard path, mobile
+- 🛠️ Found + fixed live: the `ConfirmDialog` "Processing…" label flashed back before the redirect navigated — fixed in commit `323eac3` (don't reset loading while a NEXT_REDIRECT is in flight); re-verified gone.
+
+### Stripe webhook engine (2.1 — terminal, via `stripe listen`)
+- ✅ Bad/missing signature → 400
+- ✅ `stripe trigger checkout.session.completed` → the 7-event cascade all forwarded, processed (or ignored-gracefully), and recorded in `stripe_events`, each `200`
+- ✅ Idempotency: `stripe events resend <id>` → `duplicate` log, `200`, **no new** `stripe_events` row
+- ✅ Rate limit: 200 parallel requests → `108 400 / 92 429` (limiter enforced at ~100/10s)
+- ⏸️ Per-event DB state transitions (`deleted→free`, `payment_failed→past_due`, period refresh) — **deferred to 2.3's real test-mode Checkout flow** (CLI trigger fixtures create unmapped customers, so they skip the `subscriptions` write by design)
+- ⚠️ Minor 2.1 deviation: the invalid-signature path `console.warn`s but does **not** `Sentry.captureException` (the 2.1 "Done when" said "Sentry event captured"). Defensible as noise-reduction (bad sigs are bot/misconfig noise); flag for a 2.1 follow-up if Sentry visibility is wanted.
+
+### RLS verified for tables: projects, usage
+Re-ran `scripts/rls-verify.mjs` → **14/14 PASS** (self-cleaning two-account test with real JWTs). B cannot read A's `projects` / `usage` / `subscriptions` / `workspaces` / `workspace_members` / `activity_log` / `invitations` / `profiles`; positive controls intact; anon blocked.
+
+### Still deferred after this pass
+- Per-event webhook DB writes → **Checkpoint 2.3** (real Checkout flow)
+- Non-owner/admin cannot delete a project → **Phase 3** (needs a 2nd workspace member)
 
 ---
 
