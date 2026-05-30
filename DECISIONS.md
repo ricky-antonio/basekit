@@ -302,3 +302,11 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 - Fail closed on limiter error — safer against abuse but converts a dependency blip into a full outage; for a webhook it also defeats the "always 200, never retry-storm" contract.
 - Log every plan change from both events — double-logs (or zero-logs, depending on event order) the initial purchase.
 **Date:** 2026-05-29
+
+## Unrecognized subscription prices are skipped, not written as `free`
+**Decision:** In the webhook handlers, if a subscription's line-item price doesn't resolve to a known paid plan (`getPlanNameFromPriceId` returns `free` for a non-null price), the handler **skips the write and `Sentry.captureMessage`s** instead of upserting. Only `customer.subscription.deleted` legitimately writes `plan_name='free'`.
+**Why:** A Stripe subscription always carries a paid price, so a price that maps to `free` means it isn't in our env config (e.g. created/renamed in the Stripe dashboard, or a grandfathered price). Building the row anyway would write `plan_name='free'` over a **paying** customer — a silent downgrade with no signal. Refusing to write leaves the existing (correct) row intact and surfaces the misconfiguration loudly. Surfaced by the post-2.1 audit (finding #2).
+**Alternatives rejected:**
+- Write `free` anyway (original behavior) — silently downgrades a paying customer; the failure is invisible until they complain.
+- Fall back to the previous plan — guesses at intent; better to halt + alert and fix the config.
+**Date:** 2026-05-29

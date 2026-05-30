@@ -98,6 +98,13 @@ async function writeSubscription(
   if (error) throw new Error(`subscriptions upsert failed: ${error.message}`)
 }
 
+// A subscription whose price doesn't map to a known paid plan is a misconfiguration
+// (e.g. a price created in the Stripe dashboard but missing from env). Writing it would
+// silently downgrade a paying customer to 'free', so callers skip + alert instead.
+function isRecognizedPaidPrice(priceId: string): boolean {
+  return getPlanNameFromPriceId(priceId) !== "free"
+}
+
 async function handleCheckoutCompleted(supabase: ServiceClient, raw: unknown): Promise<void> {
   const parsed = checkoutSessionSchema.safeParse(raw)
   if (!parsed.success) return skip("checkout.session.completed (parse)", parsed.error.issues)
@@ -114,8 +121,15 @@ async function handleCheckoutCompleted(supabase: ServiceClient, raw: unknown): P
   const rawSubscription = await stripe.subscriptions.retrieve(subscriptionId)
   const subParsed = subscriptionEventSchema.safeParse(rawSubscription)
   if (!subParsed.success) return skip("checkout.session.completed (subscription parse)", subParsed.error.issues)
-  if (!subParsed.data.items.data[0]) {
+  const checkoutItem = subParsed.data.items.data[0]
+  if (!checkoutItem) {
     return skip("checkout.session.completed (no line item)", { subscriptionId })
+  }
+  if (!isRecognizedPaidPrice(checkoutItem.price.id)) {
+    return skip("checkout.session.completed (unrecognized price; refusing to downgrade)", {
+      subscriptionId,
+      priceId: checkoutItem.price.id,
+    })
   }
 
   const fields = buildSubscriptionFields(subParsed.data)
@@ -135,8 +149,15 @@ async function handleSubscriptionChange(supabase: ServiceClient, raw: unknown): 
   if (!parsed.success) return skip("customer.subscription.updated (parse)", parsed.error.issues)
 
   const subscription = parsed.data
-  if (!subscription.items.data[0]) {
+  const changeItem = subscription.items.data[0]
+  if (!changeItem) {
     return skip("customer.subscription.updated (no line item)", { id: subscription.id })
+  }
+  if (!isRecognizedPaidPrice(changeItem.price.id)) {
+    return skip("customer.subscription.updated (unrecognized price; refusing to downgrade)", {
+      id: subscription.id,
+      priceId: changeItem.price.id,
+    })
   }
 
   const workspaceId = await resolveWorkspaceId(

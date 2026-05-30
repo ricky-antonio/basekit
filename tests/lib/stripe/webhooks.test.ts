@@ -274,6 +274,35 @@ describe("graceful handling", () => {
     expect(getLastWrite("subscriptions", "upsert")).toBeUndefined()
   })
 
+  it("refuses to write (no downgrade) when a subscription price is unrecognized", async () => {
+    await handleStripeEvent(
+      event(
+        "customer.subscription.updated",
+        subscriptionObject({
+          items: { data: [{ price: { id: "price_not_in_env" }, current_period_start: 1, current_period_end: 2 }] },
+        }),
+      ),
+    )
+
+    expect(Sentry.captureMessage).toHaveBeenCalled()
+    expect(getLastWrite("subscriptions", "upsert")).toBeUndefined()
+  })
+
+  it("refuses to write on checkout when the retrieved subscription's price is unrecognized", async () => {
+    mockStripe.subscriptions.retrieve.mockResolvedValue(
+      subscriptionObject({
+        items: { data: [{ price: { id: "price_not_in_env" }, current_period_start: 1, current_period_end: 2 }] },
+      }),
+    )
+
+    await handleStripeEvent(
+      event("checkout.session.completed", { metadata: { workspaceId }, customer: "cus_1", subscription: "sub_1" }),
+    )
+
+    expect(Sentry.captureMessage).toHaveBeenCalled()
+    expect(getLastWrite("subscriptions", "upsert")).toBeUndefined()
+  })
+
   it("ignores an unknown event type without error", async () => {
     await expect(
       handleStripeEvent(event("payment_intent.created", {})),

@@ -41,6 +41,9 @@ Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-read
 **Dashboard (defer to 2.2)**
 - `app/(app)/dashboard/page.tsx` hard-codes the "No projects yet" EmptyState and omits the member count the 1.3 spec mentioned. Wire it to real project/usage data when 2.2 builds the projects domain.
 
+**Checkout guard (2.3 — hard requirement, from the 2.1 audit)**
+- The `/api/billing/checkout` route MUST refuse to create a session when the workspace already has an active paid subscription (`getActivePlan !== 'free'`) — redirect to the portal instead. `createCheckoutSession` itself does not guard this, so calling it for an existing subscriber creates a **second** Stripe subscription that keeps billing (double-charge). See the 2.1 closeout → "Post-hardening audit".
+
 **External setup to verify (not code)**
 - 2.1: run `stripe listen --forward-to localhost:3000/api/webhooks/stripe`; set `STRIPE_WEBHOOK_SECRET` to the **dynamic secret `stripe listen` prints** (the dashboard value currently in `.env.local` may differ for local dev).
 - 2.3: configure the **Stripe Customer Portal** (cancel-at-period-end, plan switching) — setup.md §4c.
@@ -49,6 +52,7 @@ Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-read
 
 ## Known issues
 - **Phase 2.1 webhook flow is code-complete but unverified against live Stripe** — needs a manual `stripe listen` + live-DB session (see Checkpoint 2.1 closeout → Deferred). `lib/email.ts` ships as **stubs** (no real email sent until Phase 3.1). `stripe trigger` fixtures skip gracefully (no workspace mapping) unless a `metadata.workspaceId` override is added.
+- **2.3 checkout MUST guard already-subscribed workspaces** (from the 2.1 audit) — `createCheckoutSession` does not, so the 2.3 route has to reject/redirect-to-portal when `getActivePlan !== 'free'` or it can create a duplicate, double-billing Stripe subscription. Full deferred-findings list in Checkpoint 2.1 closeout → "Post-hardening audit".
 - `npm audit` reports a moderate-severity `postcss` XSS advisory pulled in transitively via Next 15. **Accepted, not fixed** — see DECISIONS.md → "Accepted postcss XSS advisory (transitive via Next 15)". Not exploitable in our context (we author all CSS); the upstream fix requires Next 16.3+. Re-evaluate when we revisit Next 16.
 - **Resend has zero verified domains** — the API key is valid but no domain is verified, so email sends from a custom `FROM_EMAIL` will be rejected; only Resend's sandbox-to-self works. Not a Phase 1 blocker (email lands in Phase 3). Verify a domain (or use the sandbox sender) before Phase 3.1.
 - **`service_role` table grants were missing** (found + fixed during Phase 1 verification) — see "Phase 1 verification" below + DECISIONS.md → "Explicit table grants for SQL-Editor-created tables". Resolved; flagged here for the audit trail.
@@ -241,6 +245,34 @@ A self-review surfaced 7 robustness items; all fixed before entering 2.2 (still 
 - **Paid-tier plan switches are logged** (`subscription.upgraded`/`downgraded` from `customer.subscription.updated`); the initial free→paid purchase stays logged once by `checkout.session.completed`. Avoids the double/zero-log race between the two events. (+4 tests.)
 
 Net: 218 tests (was 206), all 4 gates green. See DECISIONS → "Post-2.1 webhook/limiter hardening".
+
+### 10. Post-hardening audit (same session)
+
+Ran the formal session audit (`.claude/session-audit.md`) over the full session diff, including the
+hardening code (which was itself written after the first review and so hadn't been audited). Result:
+
+**Fixed now**
+- **Unrecognized subscription price → silent downgrade to free.** A non-null price that isn't in env
+  resolved to `plan_name='free'`, which would overwrite a paying customer's row. The handlers now skip
+  the write + `Sentry.captureMessage` instead. (+2 webhook tests → 220 total.) See DECISIONS →
+  "Unrecognized subscription prices are skipped, not written as `free`".
+
+**Deferred to 2.3 (hard requirement, not optional)**
+- **Checkout doesn't guard an already-subscribed workspace.** `createCheckoutSession`
+  (`lib/stripe/checkout.ts`) will create a *second* Stripe subscription if called for a workspace that
+  already has an active paid one — the webhook upserts our single row, but the first subscription keeps
+  billing → double-charge. The 2.3 checkout route MUST reject / redirect-to-portal when
+  `getActivePlan !== 'free'`. Mirrored as a 2.3 watch-item above.
+
+**Deferred 🟡 (note-and-defer)**
+- Idempotency read error in the webhook route is swallowed (no Sentry) — `route.ts` ~L49.
+- `getOrCreateStripeCustomer` persists via `.update` — silent no-op if the subscriptions row is missing
+  (bootstrap guarantees it; low risk).
+- `usage.ts` increment/decrement RPC-error branches are uncovered (lowest module, 72.97% stmt) — close
+  with 2 tests when convenient.
+- `subscription.reactivated` (cancel→un-cancel) isn't logged to `activity_log` — Phase 4 vocab gap.
+- `lib/stripe/webhooks.ts` is ~300 lines (soft limit) — extract per-event handlers if 2.3 grows it.
+- `STRIPE_WEBHOOK_SECRET` misconfig fails closed (silent 400s) — ops note.
 
 ## Checkpoint 1.3 closeout — 2026-05-28
 
