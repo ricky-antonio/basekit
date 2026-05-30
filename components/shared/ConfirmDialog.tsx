@@ -38,8 +38,15 @@ export default function ConfirmDialog({
     setLoading(true)
     try {
       await onConfirm()
-    } finally {
       setLoading(false)
+    } catch (error) {
+      // A Server Action redirect throws NEXT_REDIRECT and navigates away — keep the
+      // button in its loading state instead of flashing the label back before the
+      // page changes. Real errors reset it and propagate.
+      if (!(error as { digest?: string } | null)?.digest?.startsWith("NEXT_REDIRECT")) {
+        setLoading(false)
+      }
+      throw error
     }
   }
 

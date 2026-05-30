@@ -49,6 +49,9 @@ Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-read
 **Checkout guard (2.3 — hard requirement, from the 2.1 audit)**
 - The `/api/billing/checkout` route MUST refuse to create a session when the workspace already has an active paid subscription (`getActivePlan !== 'free'`) — redirect to the portal instead. `createCheckoutSession` itself does not guard this, so calling it for an existing subscriber creates a **second** Stripe subscription that keeps billing (double-charge). See the 2.1 closeout → "Post-hardening audit".
 
+**Billing route reconciliation (2.3 — found during 2.2 manual verification)**
+- There are currently **two** billing URLs that disagree: the `UpgradePrompt` CTA (and the 2.3 spec/architecture doc) target the canonical `/settings/billing`, which does **not** exist yet (clicking Upgrade 404s into the settings shell); the Sidebar + MobileNav "Billing" items still point at the temporary 1.3 stub at top-level `/billing`. When 2.3 builds `app/(app)/settings/billing/page.tsx`, it must also (a) repoint `components/layout/Sidebar.tsx` + `components/layout/MobileNav.tsx` "Billing" from `/billing` → `/settings/billing`, and (b) delete the orphan `app/(app)/billing/page.tsx` stub (or make it redirect). Easy to miss because the stub "works."
+
 **External setup to verify (not code)**
 - 2.1: run `stripe listen --forward-to localhost:3000/api/webhooks/stripe`; set `STRIPE_WEBHOOK_SECRET` to the **dynamic secret `stripe listen` prints** (the dashboard value currently in `.env.local` may differ for local dev).
 - 2.3: configure the **Stripe Customer Portal** (cancel-at-period-end, plan switching) — setup.md §4c.
