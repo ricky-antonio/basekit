@@ -6,15 +6,20 @@
 Phase 2 — Billing + Webhooks + Usage (in progress)
 
 ## Current checkpoint
-Checkpoint 2.1 — Stripe lib + webhook handler + usage enforcement — **code-complete,
-all 4 checks green**. Engine room built: Stripe client, billing/customer helpers,
-usage enforcement (fail-open), the full webhook event handler + signature-verified
-idempotent route, and Zod schemas. 206 tests pass; coverage 85.6/75.08/89.65/88.65
-(> Phase 2 thresholds 75/70/75/75). **Manual `stripe listen` / live-DB verification
-still pending** (see Deferred in the 2.1 closeout). Next: Checkpoint 2.2 (projects
-domain end-to-end) — after the user confirms commit + clears context.
+Checkpoint 2.2 — Projects domain end-to-end — **code-complete, all 4 checks green,
+session audit run + resolved**. Built: projects lib (`list/get/create/delete` with
+LIMIT_EXCEEDED gate + owner/admin delete check), create-project validation, the
+`/projects` list (+ usage summary + skeleton), `/projects/new` (form → redirect),
+`/projects/[id]` (detail + delete via ConfirmDialog), `UpgradePrompt`, a `projectWrite`
+limiter, and the dashboard wired to real project/member counts. 245 tests pass; coverage
+85.95/76.85/90.42/88.56 (> Phase 2 thresholds 75/70/75/75). Audit 🟠 fixed (dashboard
+badge now uses status-aware `getActivePlan`). **Manual browser verification still pending**
+(see 2.2 closeout → Deferred), as is the carried-over 2.1 `stripe listen`/live-DB check.
+Next: Checkpoint 2.3 (billing API routes + billing settings page) — after the user
+confirms commit + clears context.
 
 ## Completed
+- [2026-05-29] Phase 2.2 — Projects domain end-to-end (lib + pages + UpgradePrompt + dashboard wiring; manual browser verification deferred). (See "Checkpoint 2.2 closeout — 2026-05-29" below.)
 - [2026-05-29] Phase 2.1 — Stripe lib + webhook handler + usage enforcement (code-complete; manual `stripe listen`/live-DB verification deferred). (See "Checkpoint 2.1 closeout — 2026-05-29" below.)
 - [2026-05-28] Phase 1 verification — live RLS (14/14 via real JWTs), found+fixed a `service_role` table-grant bug, external-service connectivity confirmed, all 4 checks green. (See "Phase 1 verification — 2026-05-28" below.)
 - [2026-05-28] Phase 1.3 — App shell + dashboard + settings skeleton. (See "Checkpoint 1.3 closeout" below.)
@@ -22,7 +27,7 @@ domain end-to-end) — after the user confirms commit + clears context.
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- _(none in code)_ — Phase 2.1 is code-complete and all 4 checks pass. **Pending manual verification** (requires `npm run dev` + `stripe listen` + live DB): trigger each Stripe event and confirm DB writes, duplicate-event short-circuit, invalid-signature 400 + Sentry, rate-limit 429, and re-run the RLS test on `subscriptions`. Tracked in the 2.1 closeout → Deferred. Next code work: Checkpoint 2.2 (projects domain). Resend domain verification still needed before Phase 3 (see Known issues).
+- _(none in code)_ — Phase 2.2 is code-complete and all 4 checks pass. **Pending manual verification** (requires `npm run dev` + live DB): free user creates 3 projects, 4th shows `<UpgradePrompt />` inline; delete decrements usage + lets you create again; `/projects` skeleton shows with no empty flash; mobile usability; re-run RLS on `projects`/`usage`. Tracked in the 2.2 closeout → Deferred. Carried over from 2.1: the `stripe listen`/live-DB webhook verification. Next code work: Checkpoint 2.3 (billing API routes + billing settings page) — **must** guard already-subscribed workspaces in the checkout route (see Known issues). Resend domain verification still needed before Phase 3 (see Known issues).
 
 ## Phase 2 — entry notes (read before Checkpoint 2.1)
 Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-ready, no blockers**: `subscriptions` has all Stripe columns + `updated_at` trigger + `unique(workspace_id)`/`unique(stripe_customer_id)`; `usage` has `unique(workspace_id, resource)` + `count >= 0` with `increment_usage` (upsert) / `decrement_usage` (clamps at 0); `projects` RLS = member insert/select/update + owner/admin-only delete; `stripe_events` = `id`/`type`/`processed_at` (no RLS); `service_role` grants fixed; `usage_select_members` exists so enforcement reads don't fail open. Watch-items:
@@ -151,6 +156,80 @@ Verified via `scripts/rls-verify.mjs` (new) — a reproducible form of setup.md 
 
 _(Appended chronologically as checkpoints complete. Newest at the top.
 Each closeout follows the 8-item template defined in CLAUDE.md → Checkpoint protocol.)_
+
+## Checkpoint 2.2 closeout — 2026-05-29
+
+### 1. Planned vs delivered
+
+**Projects domain**
+- ✅ `lib/projects.ts` — `listProjects`, `getProject`, `createProject` (LIMIT_EXCEEDED gate + usage increment), `deleteProject` (owner/admin FORBIDDEN check + usage decrement; returns `{ workspaceId }` for logging)
+- ✅ `lib/validation/project.ts` — `createProjectSchema` (name 1–64, description ≤500 → null)
+
+**Pages**
+- ✅ `app/(app)/projects/page.tsx` — list view + usage summary (lightweight placeholder; full `UsageBar` lands in 2.3) + "New project" button
+- ✅ `app/(app)/projects/new/page.tsx` + `NewProjectForm.tsx` — create form (Server Action → redirect to `/projects`); renders `<UpgradePrompt />` inline on LIMIT_EXCEEDED
+- ✅ `app/(app)/projects/[id]/page.tsx` + `DeleteProjectButton.tsx` — detail view + delete via `ConfirmDialog`
+- ✅ `app/(app)/projects/loading.tsx` — skeleton list
+
+**Shared billing component**
+- ✅ `components/billing/UpgradePrompt.tsx` — renders only on `code === "LIMIT_EXCEEDED"`, links to `upgradeUrl` (falls back to `/settings/billing`)
+
+**Cache invalidation**
+- ⚠️ Used `revalidatePath("/projects")` + `revalidatePath("/dashboard")` instead of the planned `revalidateTag("projects:" + workspaceId)` — the reads aren't wrapped in `unstable_cache`, so the tag would be a no-op (consistent with the 2.1 decision). See DECISIONS → "Project list invalidation uses `revalidatePath`".
+
+**Extra (not in the task list, needed for the work)**
+- ✅ `app/(app)/projects/actions.ts` — `createProjectAction`, `deleteProjectAction` (auth → rate-limit → validate → lib → activity log → redirect)
+- ✅ `lib/ratelimit.ts` — added `projectWrite` (30/min/user); see DECISIONS
+- ✅ Wired `app/(app)/dashboard/page.tsx` to real project + member counts (the 1.3→2.2 entry-note deferral); plan badge now uses status-aware `getActivePlan` (audit fix)
+
+### 2. In plain English (delivered)
+
+The projects feature works end to end in code. A signed-in free user can create up to 3 projects from `/projects/new`; the 4th attempt comes back `LIMIT_EXCEEDED` and the form renders the `UpgradePrompt` inline, pointing at `/settings/billing`. Each create increments the usage counter; viewing a project on its detail page exposes a delete button (gated behind a confirmation dialog) that only owners/admins can use, and deleting decrements the counter so a free user can immediately create another. The list page shows a usage summary at the top and a skeleton while loading; the dashboard now shows real project and member counts and a "Recent projects" list. No billing UI yet — this checkpoint proves the usage-enforcement engine (built in 2.1) drives a real UI flow. Create/delete are redirect-based (server-truth on next render) rather than `useOptimistic`, matching the spec's separate-page structure.
+
+### 3. Done-when verification
+
+- ✅ Free user creates 3 projects; 4th returns `LIMIT_EXCEEDED` — `createProject` gates on `canCreateProject`; verified in `tests/lib/projects.test.ts` + `tests/api/projects-actions.test.ts`
+- ✅ `<UpgradePrompt />` renders on limit hit, links to `/settings/billing` — verified in `tests/components/UpgradePrompt.test.tsx`
+- ✅ Delete project → usage decrements — `deleteProject` calls `decrementUsage`; verified in `tests/lib/projects.test.ts`
+- ⚠️ `/projects` loading skeleton renders during initial fetch (no empty flash) — `loading.tsx` exists; **visual confirmation deferred to manual session**
+- ✅ All project lib + component tests pass (11 + 5 + 9 = 25 new)
+- ✅ `npm run test:coverage` ≥ 75% — **Stmts 85.95% · Branches 76.85% · Funcs 90.42% · Lines 88.56%** (thresholds 75/70/75/75)
+- ✅ `npm run type-check` — zero errors · `npm run build` — zero warnings/errors, 25 routes
+- ⚠️ Browser flow (create 3 → 4th prompt, delete-then-create, mobile) — **deferred to manual session**
+
+### 4. Test files added/changed
+
+- `tests/lib/projects.test.ts` (new, 11 cases)
+- `tests/components/UpgradePrompt.test.tsx` (new, 5 cases)
+- `tests/api/projects-actions.test.ts` (new, 9 cases)
+
+### 5. New DECISIONS.md entries
+
+- Projects use redirect-based create/delete flows, not inline optimistic UI
+- `projectWrite` rate limiter added despite not being in security.md's table
+- Project list invalidation uses `revalidatePath`, not `revalidateTag`
+
+### 6. Deferred items
+
+- **Manual verification of this checkpoint** (needs `npm run dev` + live DB): create 3 → 4th shows `<UpgradePrompt />` inline; delete decrements + immediately re-create; `/projects` skeleton with no empty flash; mobile project list + create form; re-run RLS two-account test on `projects` + `usage`. Target: standalone manual session before Phase 2 ships, or alongside 2.3.
+- **Full `UsageBar` component** — the list page renders a lightweight placeholder; the amber/red-state `UsageBar` is a 2.3 deliverable. Target: 2.3.
+- **List-read failure shows empty state, not an error** (`projects/page.tsx`, `dashboard/page.tsx`) — degrade-to-error UI is a Phase 5 polish item. Target: Phase 5.
+
+### 7. Known issues
+
+- Create's limit check is **not atomic** with the insert (TOCTOU): concurrent creates at the boundary can over-create by a small margin, and the usage counter is best-effort (Sentry-logged on RPC failure), so it can drift from the actual row count. Matches the project's "concurrency dedup is v2" stance (2.1 closeout). Self-corrects on the next delete.
+- Client-side `NEXT_REDIRECT` rethrow in `NewProjectForm`/`DeleteProjectButton` is **manual-only** (browser path, not unit-tested) — same as the existing Topbar sign-out.
+- `lib/projects.ts` defensive error branches (lookup/delete failure) are uncovered (80.85% stmt) — low-risk, above threshold.
+
+### 8. What surprised me
+
+`vi.clearAllMocks()` does **not** reset an implementation installed via `mockImplementation` — only call history. My first `deleteProject` test overrode `mockSupabase.from` with a custom impl, which then leaked into the next test and turned its expected `NOT_FOUND` into `FORBIDDEN`. The fix was to stop overriding `from` entirely: the canonical mock already keys responses by table name, so setting `mockSupabaseFrom("projects", …)` and `mockSupabaseFrom("workspace_members", …)` separately gives a multi-table handler the per-table responses it needs without any custom implementation.
+
+### 9. Session audit (run before this closeout)
+
+Ran `.claude/session-audit.md` over the full session diff. Result: **no 🔴**; one **🟠 fixed now** — the dashboard plan badge derived from raw `subscription.plan_name`, so a canceled/unpaid subscriber would see their old paid plan while the projects page (using `getActivePlan`) enforced free limits. Switched the badge to `getActivePlan` (status-aware), re-ran all four gates green. 🟡 items deferred with rationale: TOCTOU on create (v2), counter drift (best-effort by design), list-read-error UI (Phase 5), `zodFieldErrors` duplication (extract on 3rd copy), `deleteProjectAction` projectId not Zod-validated (low risk — parameterized + RLS + NOT_FOUND), "View all" link tap-target (mobile polish), optimistic-UI deviation (documented in DECISIONS), client redirect-rethrow manual-only (matches Topbar).
+
+---
 
 ## Checkpoint 2.1 closeout — 2026-05-29
 

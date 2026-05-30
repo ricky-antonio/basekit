@@ -310,3 +310,33 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 - Write `free` anyway (original behavior) — silently downgrades a paying customer; the failure is invisible until they complain.
 - Fall back to the previous plan — guesses at intent; better to halt + alert and fix the config.
 **Date:** 2026-05-29
+
+---
+
+## Projects use redirect-based create/delete flows, not inline optimistic UI
+**Decision:** Project creation lives on a dedicated `/projects/new` page and project deletion on `/projects/[id]` behind a `ConfirmDialog`; both Server Actions `redirect("/projects")` on success rather than optimistically mutating an in-place list with `useOptimistic`. The code-rule "optimistic UI required on all mutations" is treated as satisfied by the same exception class as the documented subscription-cancel flow (confirmation modal; result is server-truth on next render).
+**Why:** The Phase 2.2 spec structures the feature as three separate pages (`list`, `new`, `[id]`) with create on its own page — there is no in-place list to optimistically update at the moment of mutation, so the user is navigated to a freshly-rendered list that already reflects the server truth. Forcing `useOptimistic` onto a redirect flow would be artificial. The UX contract is still honored: the submit button shows "Creating…" (loading set before any await) and stays disabled until navigation; delete is gated behind a confirmation step. The architecture doc's inline-`ProjectList` optimistic example remains the pattern to use if/when an in-place list with inline create is built.
+**Alternatives rejected:**
+- Inline `useOptimistic` list with inline create form — contradicts the spec's separate-page structure; adds rollback complexity for no benefit when the page redirects anyway.
+- Return `ApiResult` and `router.push` on success — `router.push` for navigation is disallowed by the loading/nav rules; `redirect()` from the action is the sanctioned path.
+**Date:** 2026-05-29
+
+---
+
+## `projectWrite` rate limiter added despite not being in security.md's table
+**Decision:** Added a `projectWrite` limiter (30/min, keyed by `user.id`) and applied it to both `createProjectAction` and `deleteProjectAction`, even though `security.md`'s rate-limit table does not list project create/delete.
+**Why:** Every existing Server Action in the codebase (all five settings actions) rate-limits after auth; leaving the project actions unlimited would be the lone exception and an abuse vector (scripted project churn). 30/min mirrors `settingsWrite`. The security.md table predates the projects domain; this extends it rather than contradicting it.
+**Alternatives rejected:**
+- No limiter (follow the table literally) — inconsistent with every other write action; unbounded create/delete loop.
+- A stricter limit — 30/min already comfortably covers legitimate burst use (creating several projects in a sitting) without being a nuisance.
+**Date:** 2026-05-29
+
+---
+
+## Project list invalidation uses `revalidatePath`, not `revalidateTag`
+**Decision:** After create/delete, the actions call `revalidatePath("/projects")` + `revalidatePath("/dashboard")` rather than the `revalidateTag("projects:" + workspaceId)` named in the phase task list.
+**Why:** Same reasoning as the 2.1 decision to drop `revalidateTag` for subscriptions: `revalidateTag` is a no-op unless the underlying reads are wrapped in `unstable_cache({ tags })`, which they are not. The list/dashboard reads are dynamic Server Components (cookie-gated via `requireAuth`), so they re-fetch on every request regardless; `revalidatePath` is the honest, effective call and avoids shipping a tag that invalidates nothing. Revisit if/when these reads are wrapped in `unstable_cache`.
+**Alternatives rejected:**
+- `revalidateTag` per the task list — would be dead code given the reads aren't cache-tagged.
+- No invalidation at all — technically fine for dynamic pages, but `revalidatePath` is cheap insurance and documents intent.
+**Date:** 2026-05-29
