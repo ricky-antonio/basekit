@@ -19,8 +19,12 @@ const mocks = vi.hoisted(() => ({
   logActivity: vi.fn(),
   sendTrialEndingEmail: vi.fn(),
   sendPaymentFailedEmail: vi.fn(),
+  getWorkspaceOwnerContact: vi.fn(),
 }))
 vi.mock("@/lib/activity", () => ({ logActivity: mocks.logActivity }))
+vi.mock("@/lib/workspace", () => ({
+  getWorkspaceOwnerContact: mocks.getWorkspaceOwnerContact,
+}))
 vi.mock("@/lib/email", () => ({
   sendTrialEndingEmail: mocks.sendTrialEndingEmail,
   sendPaymentFailedEmail: mocks.sendPaymentFailedEmail,
@@ -67,8 +71,13 @@ beforeEach(() => {
   mocks.logActivity.mockReset()
   mocks.sendTrialEndingEmail.mockReset()
   mocks.sendPaymentFailedEmail.mockReset()
+  mocks.getWorkspaceOwnerContact.mockReset()
   mockStripe.subscriptions.retrieve.mockReset()
   vi.clearAllMocks()
+  mocks.getWorkspaceOwnerContact.mockResolvedValue({
+    ok: true,
+    data: { email: "owner@example.com", ownerName: "Ada", workspaceName: "Acme" },
+  })
 })
 
 describe("checkout.session.completed", () => {
@@ -170,7 +179,26 @@ describe("invoice.payment_failed", () => {
 
     const write = getLastWrite("subscriptions", "update")
     expect(write?.payload).toMatchObject({ status: "past_due" })
-    expect(mocks.sendPaymentFailedEmail).toHaveBeenCalledWith({ workspaceId })
+    expect(mocks.sendPaymentFailedEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "owner@example.com",
+        workspaceName: "Acme",
+        portalUrl: expect.stringContaining("/settings/billing"),
+      }),
+    )
+  })
+
+  it("skips the email but still records past_due when the owner has no contact", async () => {
+    mockSupabaseFrom("subscriptions", { data: { workspace_id: workspaceId }, error: null })
+    mocks.getWorkspaceOwnerContact.mockResolvedValueOnce({
+      ok: false,
+      error: { error: "Workspace owner has no email.", code: "NOT_FOUND" },
+    })
+
+    await handleStripeEvent(event("invoice.payment_failed", { customer: "cus_1" }))
+
+    expect(getLastWrite("subscriptions", "update")?.payload).toMatchObject({ status: "past_due" })
+    expect(mocks.sendPaymentFailedEmail).not.toHaveBeenCalled()
   })
 })
 
@@ -202,15 +230,42 @@ describe("invoice.payment_succeeded", () => {
 })
 
 describe("customer.subscription.trial_will_end", () => {
-  it("triggers the trial-ending email send", async () => {
+  it("triggers the trial-ending email send to the workspace owner", async () => {
     await handleStripeEvent(
       event("customer.subscription.trial_will_end", subscriptionObject({ trial_end: 4000 })),
     )
 
-    expect(mocks.sendTrialEndingEmail).toHaveBeenCalledWith({
-      workspaceId,
-      trialEnd: new Date(4000 * 1000).toISOString(),
+    expect(mocks.sendTrialEndingEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "owner@example.com",
+        workspaceName: "Acme",
+        portalUrl: expect.stringContaining("/settings/billing"),
+      }),
+    )
+  })
+
+  it("sends a null trial-end date when the subscription has no trial_end", async () => {
+    await handleStripeEvent(
+      event("customer.subscription.trial_will_end", subscriptionObject({ trial_end: null })),
+    )
+
+    expect(mocks.sendTrialEndingEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ trialEndDate: null }),
+    )
+  })
+
+  it("skips the trial-ending email when the owner has no contact", async () => {
+    mocks.getWorkspaceOwnerContact.mockResolvedValueOnce({
+      ok: false,
+      error: { error: "Workspace owner has no email.", code: "NOT_FOUND" },
     })
+
+    await handleStripeEvent(
+      event("customer.subscription.trial_will_end", subscriptionObject({ trial_end: 4000 })),
+    )
+
+    expect(mocks.sendTrialEndingEmail).not.toHaveBeenCalled()
+    expect(Sentry.captureMessage).toHaveBeenCalled()
   })
 })
 

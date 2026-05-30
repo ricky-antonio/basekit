@@ -44,6 +44,7 @@ export function resetSupabaseMock() {
   tableResponses.clear()
   rpcResponses.clear()
   writes.length = 0
+  mockAuthData.adminUser = null
 }
 
 // Chainable query builder that resolves to the configured response
@@ -91,10 +92,16 @@ function makeQueryBuilder(table: string) {
 const mockAuthData = {
   user: null as Record<string, unknown> | null,
   session: null as Record<string, unknown> | null,
+  adminUser: null as Record<string, unknown> | null,
 }
 
 export function mockSupabaseAuth(user: Record<string, unknown> | null) {
   mockAuthData.user = user
+}
+
+// Configures the next supabase.auth.admin.getUserById(...) response (the user row).
+export function mockSupabaseAdminUser(user: Record<string, unknown> | null) {
+  mockAuthData.adminUser = user
 }
 
 export const mockSupabase = {
@@ -123,6 +130,9 @@ export const mockSupabase = {
     admin: {
       deleteUser: vi.fn(),
       listUsers: vi.fn(),
+      getUserById: vi.fn(() =>
+        Promise.resolve({ data: { user: mockAuthData.adminUser }, error: null }),
+      ),
     },
   },
 

@@ -390,3 +390,43 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 - Store unix-seconds (bigint) instead of timestamptz — would make the columns non-human-readable in SQL and diverge from every other timestamp column in the schema.
 - Read the subscription item period inside `invoice.payment_succeeded` via an extra `stripe.subscriptions.retrieve` — correct but adds an API call per invoice; the line period is already on the event payload.
 **Date:** 2026-05-30
+
+---
+
+## Email senders are pure; templates passed as `createElement(...)` so `lib/email.ts` stays `.ts`
+**Decision:** The six `sendX` functions take fully-resolved props (`to`, URLs, names) and delegate to one `sendEmail({ to, subject, react })` wrapper. They build the template via `createElement(Template, props)` rather than JSX, and `lib/email.ts` stays a `.ts` file (not `.tsx`). `sendEmail` never throws — a Resend error or network throw logs to Sentry and returns `ok: false`.
+**Why:** Pure senders are unit-testable by mocking only Resend (`tests/mocks/resend.ts`) and asserting on the captured `react.type` / `react.props` — no DB or template rendering needed. The vitest coverage `include` is `lib/**/*.ts`, so renaming to `.tsx` (which JSX would require) would silently drop the file from coverage; `createElement` keeps JSX-free `.ts` while still producing a component element whose `.type`/`.props` the tests inspect. Email is never on the critical path of a user action, so a send failure must degrade gracefully, never bubble.
+**Alternatives rejected:**
+- `lib/email.tsx` with JSX — drops the file from the coverage glob; would need a coverage-config change to re-include.
+- Resolve recipient/workspace inside each sender — couples email functions to DB lookups and forces every test to mock Supabase; resolution belongs in `getWorkspaceOwnerContact`.
+**Date:** 2026-05-30
+
+---
+
+## Billing emails link to `/settings/billing`; webhook resolves the recipient via `getWorkspaceOwnerContact`
+**Decision:** The `invoice.payment_failed` and `customer.subscription.trial_will_end` webhook handlers resolve the recipient with `getWorkspaceOwnerContact(workspaceId)` (in `lib/workspace.ts`), which reads the workspace owner's email via the service client's `supabase.auth.admin.getUserById` (+ display name from `profiles`). The email CTA points at `${NEXT_PUBLIC_SITE_URL}/settings/billing`, not a freshly-minted Stripe Customer Portal session URL.
+**Why:** The webhook only has a `workspaceId`/customer; the recipient email lives in `auth.users` (the `profiles` table has no email column). `auth.admin.getUserById` from the signature-verified, server-only webhook is a justified use of the admin API — there is no user session to gate on `requireAdmin`, and it's consistent with `lib/profile.ts`'s existing `auth.admin.deleteUser` use. Linking to the in-app billing page (which hosts the "Manage billing" → portal button) avoids minting a portal session inside the webhook (an extra Stripe call whose URL can also go stale before the email is opened).
+**Alternatives rejected:**
+- Read the email off the Stripe customer object (`stripe.customers.retrieve`) — adds a Stripe call and depends on the customer email being set; the workspace owner is our own source of truth.
+- Mint a real portal session URL in the email — extra Stripe call per event + portal URLs are short-lived/one-time, so a delayed email open would dead-end.
+**Date:** 2026-05-30
+
+---
+
+## Email-template tests assert on `render()` HTML, not React Testing Library
+**Decision:** The six `tests/components/email/*.test.tsx` files render templates with react-email's `render()` (async → HTML string) and assert on the string, rather than mounting them with `@testing-library/react` like every other component test.
+**Why:** `testing.md`'s "component tests use RTL" rule targets app UI components mounted in jsdom. Email templates are full `<html><body>…</html>` documents; mounting them via RTL nests `<html>` inside jsdom's `<body>` (invalid, noisy) and RTL queries don't map cleanly to email markup. `render()` is react-email's first-class testing path and exactly mirrors what Resend renders at send time, so the assertions (CTA `href` present, conditional section present/absent) test the real output.
+**Alternatives rejected:**
+- RTL `render` + `screen` queries — fights the full-document structure and produces nesting warnings.
+- Snapshot tests — brittle against innocuous markup/style changes; explicit `toContain` assertions are intent-revealing.
+**Date:** 2026-05-30
+
+---
+
+## Webhook infrastructure helpers extracted to `lib/stripe/webhook-helpers.ts`
+**Decision:** The pure/infrastructure helpers (`normalizeStatus`, `toIso`, `formatDate`, `refToId`, `skip`, `resolveWorkspaceId`, `buildSubscriptionFields`, `writeSubscription`, `isRecognizedPaidPrice`, `BILLING_URL`, the `ServiceClient` type) moved out of `lib/stripe/webhooks.ts` into a new `lib/stripe/webhook-helpers.ts`. `webhooks.ts` keeps only the per-event handlers + the `handleStripeEvent` dispatcher.
+**Why:** Wiring real emails pushed `webhooks.ts` to 348 lines, over the 300-line soft limit in `code.md` (a split was already pre-flagged in the 2.1 closeout). Separating "parse/resolve/write infrastructure" from "event handlers" is the natural seam: handlers read top-to-bottom and the helpers are independently scannable. The public surface (`handleStripeEvent`) is unchanged, so no behavior moved and the existing tests pass untouched; `webhooks.ts` is now 254 lines.
+**Alternatives rejected:**
+- Leave it over the limit — accrues toward the unreadable-file failure mode the rule guards against.
+- One handler file per event — over-fragmented for six short handlers that share the same helpers.
+**Date:** 2026-05-30

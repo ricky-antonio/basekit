@@ -11,10 +11,17 @@ export interface CapturedEmail {
 
 const sentEmails: CapturedEmail[] = []
 
-export const mockResendSend = vi.fn(async (email: CapturedEmail) => {
-  sentEmails.push(email)
-  return { data: { id: `mock-email-${Date.now()}` }, error: null }
-})
+interface ResendSendResult {
+  data: { id: string } | null
+  error: { message: string; name: string } | null
+}
+
+export const mockResendSend = vi.fn(
+  async (email: CapturedEmail): Promise<ResendSendResult> => {
+    sentEmails.push(email)
+    return { data: { id: `mock-email-${Date.now()}` }, error: null }
+  },
+)
 
 export const mockResend = {
   emails: {

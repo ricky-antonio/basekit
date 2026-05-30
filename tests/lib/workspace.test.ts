@@ -4,6 +4,7 @@ import {
   mockSupabase,
   mockSupabaseFrom,
   mockSupabaseRpc,
+  mockSupabaseAdminUser,
   resetSupabaseMock,
 } from "@/tests/mocks/supabase"
 
@@ -16,7 +17,9 @@ vi.mock("@/lib/activity", () => ({
   logActivity: vi.fn().mockResolvedValue(undefined),
 }))
 
-const { getWorkspace, bootstrapWorkspace } = await import("@/lib/workspace")
+const { getWorkspace, bootstrapWorkspace, getWorkspaceOwnerContact } = await import(
+  "@/lib/workspace"
+)
 const { logActivity } = await import("@/lib/activity")
 
 const fakeUser: User = {
@@ -153,5 +156,63 @@ describe("bootstrapWorkspace", () => {
         p_slug: expect.stringMatching(/^workspace-/),
       }),
     )
+  })
+})
+
+describe("getWorkspaceOwnerContact", () => {
+  it("returns the owner email, display name, and workspace name", async () => {
+    mockSupabaseFrom("workspaces", {
+      data: { name: "Acme", owner_id: fakeUser.id },
+      error: null,
+    })
+    mockSupabaseAdminUser({ id: fakeUser.id, email: "owner@example.com" })
+    mockSupabaseFrom("profiles", { data: { display_name: "Ada" }, error: null })
+
+    const result = await getWorkspaceOwnerContact(fakeWorkspace.id)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data).toEqual({
+        email: "owner@example.com",
+        ownerName: "Ada",
+        workspaceName: "Acme",
+      })
+    }
+  })
+
+  it("returns ownerName null when the owner has no profile display name", async () => {
+    mockSupabaseFrom("workspaces", {
+      data: { name: "Acme", owner_id: fakeUser.id },
+      error: null,
+    })
+    mockSupabaseAdminUser({ id: fakeUser.id, email: "owner@example.com" })
+    mockSupabaseFrom("profiles", { data: null, error: null })
+
+    const result = await getWorkspaceOwnerContact(fakeWorkspace.id)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.ownerName).toBeNull()
+  })
+
+  it("returns NOT_FOUND when the workspace does not exist", async () => {
+    mockSupabaseFrom("workspaces", { data: null, error: null })
+
+    const result = await getWorkspaceOwnerContact("missing")
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe("NOT_FOUND")
+  })
+
+  it("returns NOT_FOUND when the owner has no email", async () => {
+    mockSupabaseFrom("workspaces", {
+      data: { name: "Acme", owner_id: fakeUser.id },
+      error: null,
+    })
+    mockSupabaseAdminUser(null)
+
+    const result = await getWorkspaceOwnerContact(fakeWorkspace.id)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe("NOT_FOUND")
   })
 })

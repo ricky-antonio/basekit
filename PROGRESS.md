@@ -3,27 +3,26 @@
 ---
 
 ## Current phase
-Phase 2 — Billing + Webhooks + Usage — **COMPLETE** (all 3 checkpoints + full manual
-verification done; ready for Phase 3 after commit)
+Phase 3 — Team + Invitations + Email — **IN PROGRESS** (Phase 2 complete + committed at
+`ff39dd1`; coverage thresholds raised to 78/78/73/78)
 
 ## Current checkpoint
-Checkpoint 2.3 — Billing API routes + billing settings page — **COMPLETE: code + session
-audit + full live manual verification (10/10) all done, all 4 gates green.** Built: the 3
-billing API routes (`/api/billing/checkout` with the **already-subscribed 409 guard**,
-`/portal`, `/cancel` with owner check), `/settings/billing` page (BillingCard + 2× UsageBar +
-past-due alert + PricingTable + BillingActions + upgraded-toast), and the `PlanBadge`/`UsageBar`/
-`BillingCard`/`PricingTable` components; nav reconciled to `/settings/billing` (orphan stub
-deleted; `excludePrefix` active-state fix). The **full browser upgrade lifecycle is verified
-live** (see "Phase 2 manual verification — 2026-05-30"): free→Pro Checkout→webhook→Pro→portal→
-cancel→past-due→rate-limit→mobile, RLS 14/14. **4 real bugs were caught + fixed during the live
-pass** (none caught by unit tests, which had wrong assumptions): BillingCard parsed ISO
-timestamps as unix-seconds; `invoice.payment_succeeded` used the invoice's zero-length top-level
-period instead of the line period; `UpgradedToast` double-fired under Strict Mode; portal/checkout
-buttons reset loading after redirect (label flash). 276 tests pass; coverage 83.67/76.8/87.93/86.54
-(> 75/70/75/75). **Phase 2 is shippable.** Next: commit, then Phase 3 — after the user confirms +
-clears context.
+Checkpoint 3.1 — Email infrastructure + all six templates — **COMPLETE: code + session
+audit + audit fixes, all 4 gates green. Live email/preview verification deferred (needs a
+verified Resend domain).** Built: `lib/resend.ts` (Resend client), `lib/email.ts` rewritten from
+the Phase 2 stubs into `sendEmail` (a never-throws wrapper) + six typed senders, `EmailLayout` +
+six React Email templates (Welcome, VerifyEmail, PasswordReset, PaymentFailed, TrialEnding,
+TeamInvitation). The two Phase 2 webhook stubs (`invoice.payment_failed`,
+`customer.subscription.trial_will_end`) now send **real** emails — resolving the recipient via the
+new `getWorkspaceOwnerContact` (`lib/workspace.ts`, reads owner email via `auth.admin.getUserById`).
+Audit-driven cleanups done in-session (not deferred): extracted webhook infra helpers to
+`lib/stripe/webhook-helpers.ts` (webhooks.ts 348→254 lines, under the 300 limit); +2 webhook branch
+tests; `EmailLayout` given a default export for the preview server; 4 DECISIONS entries added.
+**310 tests pass; coverage 84.76/77.89/89.23/87.46 (> 78/73/78/78).** Next: commit, then
+Checkpoint 3.2 — Team domain library + API routes.
 
 ## Completed
+- [2026-05-30] Phase 3.1 — Email infrastructure + 6 React Email templates; Phase 2 webhook stubs wired to real sends; webhook helpers extracted under the 300-line limit; coverage thresholds → 78/78/73/78. Code + audit complete; live email/preview verification deferred (needs verified Resend domain). (See "Checkpoint 3.1 closeout — 2026-05-30" below.)
 - [2026-05-30] Phase 2 manual verification — full billing lifecycle verified live (Checkout→webhook→Pro→portal→cancel→past-due→rate-limit 429→mobile; RLS 14/14); found + fixed 4 date/UX bugs; all 4 gates green. (See "Phase 2 manual verification — 2026-05-30" below.)
 - [2026-05-29] Phase 2.3 — Billing API routes + billing settings page (3 routes incl. checkout 409 guard, /settings/billing page, PlanBadge/UsageBar/BillingCard/PricingTable, nav reconciliation). (See "Checkpoint 2.3 closeout — 2026-05-29" below.)
 - [2026-05-29] Phase 2.2 — Projects domain end-to-end (lib + pages + UpgradePrompt + dashboard wiring; manual browser verification deferred). (See "Checkpoint 2.2 closeout — 2026-05-29" below.)
@@ -34,7 +33,14 @@ clears context.
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- _(none)_ — **Phase 2 is complete.** All three checkpoints (2.1 engine, 2.2 projects, 2.3 billing UI) are code-complete, audited, and the full billing lifecycle is verified live (see "Phase 2 manual verification — 2026-05-30"). 4 bugs found + fixed during the live pass. All 4 gates green (276 tests; coverage 83.67/76.8/87.93/86.54). **Pending: commit this work**, then begin Phase 3 — Team + Invitations + Email. Before Phase 3.1: **verify a Resend domain** (or use the sandbox sender) — see Known issues. At Phase 3 start, raise coverage thresholds to 78/78/73/78 per testing.md.
+- **Checkpoint 3.1 is code-complete + audited (all 4 gates green).** Pending: commit, then start
+  Checkpoint 3.2 — Team domain library + API routes (`lib/team.ts` + `lib/validation/team.ts` + 5
+  team API routes + activity-log writes). **Deferred from 3.1, do before declaring Phase 3 done:**
+  the live email manual-verification steps — preview all 6 templates via `npm run email` (light +
+  dark), `stripe trigger invoice.payment_failed` / `customer.subscription.trial_will_end` → real
+  email arrives, mobile email-client check, Resend-down behavior. All require a **verified Resend
+  domain** (or the sandbox-to-self sender) — see Known issues. The team-invitation email send lands
+  in 3.2/3.3, so it's natural to batch the live email pass once a domain is verified.
 
 ## Phase 2 — entry notes (read before Checkpoint 2.1)
 Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-ready, no blockers**: `subscriptions` has all Stripe columns + `updated_at` trigger + `unique(workspace_id)`/`unique(stripe_customer_id)`; `usage` has `unique(workspace_id, resource)` + `count >= 0` with `increment_usage` (upsert) / `decrement_usage` (clamps at 0); `projects` RLS = member insert/select/update + owner/admin-only delete; `stripe_events` = `id`/`type`/`processed_at` (no RLS); `service_role` grants fixed; `usage_select_members` exists so enforcement reads don't fail open. Watch-items:
@@ -70,7 +76,7 @@ Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-read
 - ~~**2.3 checkout MUST guard already-subscribed workspaces**~~ — **RESOLVED in 2.3**: the checkout route returns 409 → portal when `getActivePlan !== 'free'` (tested). See DECISIONS → "Checkout route rejects already-subscribed workspaces". (Other 2.1 deferred findings remain in Checkpoint 2.1 closeout → "Post-hardening audit".)
 - ~~**Phase 2 not yet shippable — full browser upgrade lifecycle unverified**~~ — **RESOLVED 2026-05-30**: full lifecycle verified live (Checkout→webhook→Pro→portal→cancel→past-due→rate-limit 429→mobile, RLS 14/14). Customer Portal was already configured. See "Phase 2 manual verification — 2026-05-30".
 - `npm audit` reports a moderate-severity `postcss` XSS advisory pulled in transitively via Next 15. **Accepted, not fixed** — see DECISIONS.md → "Accepted postcss XSS advisory (transitive via Next 15)". Not exploitable in our context (we author all CSS); the upstream fix requires Next 16.3+. Re-evaluate when we revisit Next 16.
-- **Resend has zero verified domains** — the API key is valid but no domain is verified, so email sends from a custom `FROM_EMAIL` will be rejected; only Resend's sandbox-to-self works. Not a Phase 1 blocker (email lands in Phase 3). Verify a domain (or use the sandbox sender) before Phase 3.1.
+- **Resend has zero verified domains** — the API key is valid but no domain is verified, so email sends from a custom `FROM_EMAIL` will be rejected; only Resend's sandbox-to-self works. **Phase 3.1 is built + unit-tested with Resend mocked, but the live email-send + `npm run email` preview manual-verification steps remain blocked on this** (see In progress → deferred). `lib/email.ts` falls back to Resend's sandbox sender (`onboarding@resend.dev`) when `FROM_EMAIL` is unset, which only delivers to the account owner's address. Verify a domain (or use the sandbox sender) before running the live email pass.
 - **`service_role` table grants were missing** (found + fixed during Phase 1 verification) — see "Phase 1 verification" below + DECISIONS.md → "Explicit table grants for SQL-Editor-created tables". Resolved; flagged here for the audit trail.
 - **Google OAuth consent shows `…supabase.co`** on the account-chooser ("to continue to …"). The OAuth consent **App name is already `basekit`** (it shows on the permission screen), but the account-picker line reflects the OAuth client's redirect/authorized domain, which is Supabase's — App-name branding cannot change it. Removing it requires a **Supabase custom auth domain** (e.g. `auth.basekit.com`): needs a registered domain + Supabase **Pro Custom Domain add-on** + DNS + updating the Google client's authorized redirect URI + Supabase Site/redirect URLs. **Phase 5 / production task** — not actionable until a domain is wired.
 
@@ -235,6 +241,79 @@ Verified via `scripts/rls-verify.mjs` (new) — a reproducible form of setup.md 
 
 _(Appended chronologically as checkpoints complete. Newest at the top.
 Each closeout follows the 8-item template defined in CLAUDE.md → Checkpoint protocol.)_
+
+## Checkpoint 3.1 closeout — 2026-05-30
+
+### 1. Planned vs delivered
+
+**Email infrastructure**
+- ✅ `lib/resend.ts` — Resend client singleton (mirrors `lib/stripe/client.ts`; coverage-excluded)
+- ✅ `lib/email.ts` — `sendEmail({ to, subject, react })` wrapper (try/catch → Sentry, **never throws**) + six typed senders (`sendWelcomeEmail`, `sendVerifyEmail`, `sendPasswordResetEmail`, `sendPaymentFailedEmail`, `sendTrialEndingEmail`, `sendTeamInvitationEmail`)
+- ✅ Phase 2 webhook stubs (`invoice.payment_failed`, `customer.subscription.trial_will_end`) wired to real sends
+
+**Templates**
+- ✅ `components/email/EmailLayout.tsx` — shared wordmark header / footer / 600px column, brand palette inlined as literal hex (email clients can't read CSS vars), exports reusable `emailStyles`
+- ✅ All six templates: `WelcomeEmail`, `VerifyEmailEmail`, `PasswordResetEmail`, `PaymentFailedEmail`, `TrialEndingEmail`, `TeamInvitationEmail` (each default-exported for the preview server, each with a conditional section)
+- ✅ `npm run email` script — already present in `package.json` from the scaffold; no change needed
+
+**Extra (not in the task list, needed for the work / from the audit)**
+- ✅ `lib/workspace.ts` → `getWorkspaceOwnerContact` (service-role; resolves owner email via `auth.admin.getUserById` + display name + workspace name) — the webhook only has a `workspaceId`, so this resolves the real recipient
+- ✅ `lib/stripe/webhook-helpers.ts` — extracted the webhook infra helpers (audit fix: `webhooks.ts` 348→254 lines, under the 300 soft limit)
+- ✅ Canonical mocks extended: `auth.admin.getUserById` + `mockSupabaseAdminUser` in `tests/mocks/supabase.ts`; widened the Resend send return type in `tests/mocks/resend.ts`
+- ✅ Raised `vitest.config.ts` thresholds to 78/78/73/78; added `lib/resend.ts` to coverage excludes
+
+### 2. In plain English (delivered)
+
+Every transactional email the app will ever send now exists as a real, tested React Email template, composed through a single `sendEmail` wrapper that logs to Sentry and returns `ok:false` on failure but **never throws** — so a Resend outage can't break a user action or a webhook. The two Phase 2 stubs are now real: a failed invoice or a trial-ending event resolves the workspace owner's email (`getWorkspaceOwnerContact`) and sends the matching template, with the CTA pointing at `/settings/billing`. No team UI yet — that's 3.2/3.3. **No email has actually been sent through Resend** (that needs a verified domain) and the visual `npm run email` preview hasn't been eyeballed — both are the deferred manual steps that, together with the Phase 3 invite flow, close out the live email verification.
+
+### 3. Done-when verification
+
+- ✅ All six `sendX` functions tested (Resend mocked, call shape verified) — `tests/lib/email.test.ts` (11 cases)
+- ✅ All six templates render without throwing + CTA URL present + conditional section omitted when prop missing — `tests/components/email/*` (18 cases)
+- ⏸️ All six templates render in `npm run email` preview without errors, light + dark — **deferred** (manual; templates do render via react-email's `render()` in tests)
+- ⏸️ `stripe trigger invoice.payment_failed` → real PaymentFailedEmail in Resend dashboard — **deferred** (needs verified Resend domain)
+- ⏸️ `stripe trigger customer.subscription.trial_will_end` → real TrialEndingEmail — **deferred** (same)
+- ✅ `npm run test:coverage` ≥ 78% — **Stmts 84.76 · Branches 77.89 · Funcs 89.23 · Lines 87.46** (thresholds 78/73/78/78)
+- ✅ `npm run type-check` zero errors · `npm run build` zero errors (25 routes)
+
+### 4. Test files added/changed
+
+- `tests/components/email/WelcomeEmail.test.tsx` (new, 3)
+- `tests/components/email/VerifyEmailEmail.test.tsx` (new, 3)
+- `tests/components/email/PasswordResetEmail.test.tsx` (new, 3)
+- `tests/components/email/PaymentFailedEmail.test.tsx` (new, 3)
+- `tests/components/email/TrialEndingEmail.test.tsx` (new, 3)
+- `tests/components/email/TeamInvitationEmail.test.tsx` (new, 3)
+- `tests/lib/email.test.ts` (rewritten — 2 stub cases → 11 real cases)
+- `tests/lib/workspace.test.ts` (extended +4 — `getWorkspaceOwnerContact`)
+- `tests/lib/stripe/webhooks.test.ts` (updated — new email call shapes; +3 cases: payment-failed/trial no-contact skip, null trial-end date)
+- `tests/mocks/supabase.ts`, `tests/mocks/resend.ts` (extended — backward-compatible)
+
+### 5. New DECISIONS.md entries
+
+- Email senders are pure; templates passed as `createElement(...)` so `lib/email.ts` stays `.ts` (coverage)
+- Billing emails link to `/settings/billing`; webhook resolves the recipient via `getWorkspaceOwnerContact`
+- Email-template tests assert on `render()` HTML, not React Testing Library
+- Webhook infrastructure helpers extracted to `lib/stripe/webhook-helpers.ts`
+
+### 6. Deferred items
+
+- **Live email manual verification** — `npm run email` light/dark preview; `stripe trigger` → real PaymentFailed / TrialEnding email; mobile email-client review; Resend-down behavior. All blocked on a **verified Resend domain** (Known issues). Target: batch with the Phase 3 invite flow once a domain is verified.
+- **Welcome / VerifyEmail / PasswordReset send call-sites** — the templates + senders exist, but Supabase Auth currently sends its own confirm/reset emails (Phase 1 templates live in the Supabase dashboard). Wiring our own Welcome/Verify/Reset sends (if we replace the Supabase defaults) is a later decision; not required by 3.1.
+
+### 7. Known issues
+
+- `lib/email.ts` `FROM_EMAIL` falls back to Resend's sandbox sender (`onboarding@resend.dev`) when the env var is unset — only delivers to the Resend account owner. Production sets `FROM_EMAIL` to a verified-domain address.
+- `EmailLayout` now has a default export purely so the preview server renders its chrome rather than a "no default export" error; templates still import the named export. To be confirmed during the manual preview step.
+- Two env-default `??` branches in `lib/email.ts` (`FROM_EMAIL`/`SITE_URL`) are uncovered (env is always set in tests) — cosmetic, well above threshold.
+
+### 8. What surprised me
+
+react-email's `render()` is exported straight from `@react-email/components` (not only `@react-email/render`) and works synchronously-enough in vitest/jsdom, which made HTML-string assertions trivial — but the bigger gotcha was coverage: the vitest `include` glob is `lib/**/*.ts`, so the instinct to make `lib/email.ts` a `.tsx` (for JSX templates) would have silently dropped the whole module from coverage. Keeping it `.ts` + `createElement` sidesteps that and, as a bonus, lets the tests assert on `react.type`/`react.props` directly instead of rendered HTML.
+
+### 9. Session audit (run before this closeout)
+
+Ran `.claude/session-audit.md` over the full session diff (re-read CLAUDE.md + the three rules files + the Phase 3 spec first). Result: **no 🔴, no 🟠.** Six 🟡 surfaced; per the user's call, all the actionable ones were **fixed in-session rather than deferred**: (1) `webhooks.ts` was 348 lines → extracted `webhook-helpers.ts`, now 254; (2) two uncovered webhook branches (trial no-contact skip, null trial-end) → +2 tests; (3) `EmailLayout` no default export → added one for the preview server; (4) `auth.admin.getUserById`-in-webhook, (5) `render()`-not-RTL, and (6) the email-helper structure → all documented as DECISIONS entries. The one non-code item that remains is the `FROM_EMAIL` sandbox fallback, which is correct behavior tied to the existing "no verified Resend domain" known issue. All four gates re-run green after the fixes (310 tests; coverage 84.76/77.89/89.23/87.46). The only honestly-unverified claims are the live email sends + visual preview — explicitly deferred (Resend domain), not silently skipped.
 
 ## Checkpoint 2.3 closeout — 2026-05-29
 

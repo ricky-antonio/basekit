@@ -68,6 +68,56 @@ export async function getWorkspace(user: User): Promise<ApiResult<Workspace>> {
   return { ok: true, data }
 }
 
+export interface WorkspaceOwnerContact {
+  email: string
+  ownerName: string | null
+  workspaceName: string
+}
+
+// Resolves the workspace owner's email + display name for transactional emails
+// (billing notices). Service-role only: it reads auth.users via auth.admin, which
+// is never reachable from a user-scoped client. Call from server-only contexts
+// (the Stripe webhook), never a Server Component.
+export async function getWorkspaceOwnerContact(
+  workspaceId: string,
+): Promise<ApiResult<WorkspaceOwnerContact>> {
+  const supabase = createServiceClient()
+
+  const { data: workspace, error: workspaceError } = await supabase
+    .from("workspaces")
+    .select("name, owner_id")
+    .eq("id", workspaceId)
+    .maybeSingle()
+
+  if (workspaceError || !workspace) {
+    return { ok: false, error: { error: "Workspace not found.", code: "NOT_FOUND" } }
+  }
+
+  const { data: userData, error: userError } = await supabase.auth.admin.getUserById(
+    workspace.owner_id,
+  )
+
+  const email = userData?.user?.email
+  if (userError || !email) {
+    return { ok: false, error: { error: "Workspace owner has no email.", code: "NOT_FOUND" } }
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", workspace.owner_id)
+    .maybeSingle()
+
+  return {
+    ok: true,
+    data: {
+      email,
+      ownerName: profile?.display_name ?? null,
+      workspaceName: workspace.name,
+    },
+  }
+}
+
 export async function bootstrapWorkspace(
   userId: string,
   email: string,
