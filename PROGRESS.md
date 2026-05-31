@@ -8,8 +8,8 @@ Phase 3 — Team + Invitations + Email — **IN PROGRESS** (Phase 2 complete + c
 
 ## Current checkpoint
 Checkpoint 3.1 — Email infrastructure + all six templates — **COMPLETE: code + session
-audit + audit fixes, all 4 gates green. Live email/preview verification deferred (needs a
-verified Resend domain).** Built: `lib/resend.ts` (Resend client), `lib/email.ts` rewritten from
+audit + audit fixes, all 4 gates green. `npm run email` preview verified (light + dark);
+live email-send verification deferred (needs a verified Resend domain).** Built: `lib/resend.ts` (Resend client), `lib/email.ts` rewritten from
 the Phase 2 stubs into `sendEmail` (a never-throws wrapper) + six typed senders, `EmailLayout` +
 six React Email templates (Welcome, VerifyEmail, PasswordReset, PaymentFailed, TrialEnding,
 TeamInvitation). The two Phase 2 webhook stubs (`invoice.payment_failed`,
@@ -36,9 +36,9 @@ Checkpoint 3.2 — Team domain library + API routes.
 - **Checkpoint 3.1 is code-complete + audited (all 4 gates green).** Pending: commit, then start
   Checkpoint 3.2 — Team domain library + API routes (`lib/team.ts` + `lib/validation/team.ts` + 5
   team API routes + activity-log writes). **Deferred from 3.1, do before declaring Phase 3 done:**
-  the live email manual-verification steps — preview all 6 templates via `npm run email` (light +
-  dark), `stripe trigger invoice.payment_failed` / `customer.subscription.trial_will_end` → real
-  email arrives, mobile email-client check, Resend-down behavior. All require a **verified Resend
+  the live email-send manual-verification steps (preview via `npm run email` already ✅ 2026-05-30):
+  `stripe trigger invoice.payment_failed` / `customer.subscription.trial_will_end` → real email
+  arrives, mobile email-client check, Resend-down behavior. These require a **verified Resend
   domain** (or the sandbox-to-self sender) — see Known issues. The team-invitation email send lands
   in 3.2/3.3, so it's natural to batch the live email pass once a domain is verified.
 
@@ -270,9 +270,10 @@ Every transactional email the app will ever send now exists as a real, tested Re
 
 - ✅ All six `sendX` functions tested (Resend mocked, call shape verified) — `tests/lib/email.test.ts` (11 cases)
 - ✅ All six templates render without throwing + CTA URL present + conditional section omitted when prop missing — `tests/components/email/*` (18 cases)
-- ⏸️ All six templates render in `npm run email` preview without errors, light + dark — **deferred** (manual; templates do render via react-email's `render()` in tests)
-- ⏸️ `stripe trigger invoice.payment_failed` → real PaymentFailedEmail in Resend dashboard — **deferred** (needs verified Resend domain)
-- ⏸️ `stripe trigger customer.subscription.trial_will_end` → real TrialEndingEmail — **deferred** (same)
+- ✅ All six templates render in `npm run email` preview without errors, light + dark — **verified 2026-05-30** (all 6 listed + render; `EmailLayout` shows chrome, not a no-default-export error; readable in both modes)
+- ✅ Per-template content verified in preview 2026-05-30 — each CTA points at the right URL, conditional sections (Welcome name greeting, PaymentFailed amount-due, TrialEnding date line, TeamInvitation message block) appear/omit correctly, copy matches brand voice (no emoji)
+- ✅ `stripe trigger customer.subscription.trial_will_end` (with `--add subscription:metadata.workspaceId=…`) → **real TrialEndingEmail delivered to the owner inbox 2026-05-30** — proves the full live chain: webhook → metadata workspace-resolve → `getWorkspaceOwnerContact` → `sendTrialEndingEmail` → Resend → delivery
+- ☑️ `invoice.payment_failed` → PaymentFailedEmail — **covered-by-proxy 2026-05-31** (a literal failed-charge event could not be produced via the Stripe CLI: magic test PMs lose their fail-on-charge behavior once attached, and raw-PAN tokenization is API-blocked — only Stripe.js/dashboard can mint a genuinely-failing card). Every component is otherwise verified: resolve-by-customer-ID fired live 3× today (Phase 2 `payment_succeeded` + two paid test invoices), the `getWorkspaceOwnerContact → sendEmail → Resend delivery` chain is proven by D2 (identical path), the PaymentFailedEmail template by the preview + unit tests, and the `status=past_due` write + `sendPaymentFailedEmail` call by `tests/lib/stripe/webhooks.test.ts`. To fire it literally: dashboard → add failing card `4000…0341` to `cus_…` → create+finalize an invoice (do this when the Resend domain is set up for 3.3). Test-mode clutter left behind: two `$5` paid test invoices + one stray attached test PM on `cus_Ubv3eYqQRg9wgZ` (harmless; subscription state verified intact — `pro/active/2026-06-30`).
 - ✅ `npm run test:coverage` ≥ 78% — **Stmts 84.76 · Branches 77.89 · Funcs 89.23 · Lines 87.46** (thresholds 78/73/78/78)
 - ✅ `npm run type-check` zero errors · `npm run build` zero errors (25 routes)
 
@@ -298,13 +299,13 @@ Every transactional email the app will ever send now exists as a real, tested Re
 
 ### 6. Deferred items
 
-- **Live email manual verification** — `npm run email` light/dark preview; `stripe trigger` → real PaymentFailed / TrialEnding email; mobile email-client review; Resend-down behavior. All blocked on a **verified Resend domain** (Known issues). Target: batch with the Phase 3 invite flow once a domain is verified.
+- **Live email manual verification** — ✅ `npm run email` light/dark preview + per-template content (2026-05-30); ✅ **TrialEndingEmail delivered live** (real `customer.subscription.trial_will_end` → owner inbox), proving the whole send chain; ☑️ **PaymentFailedEmail covered-by-proxy** (a literal failed-charge could not be produced via the CLI — see Checkpoint 3.1 closeout / Done-when). **Still to do (not blockers):** mobile email-client review of the delivered trial email; Resend-down behavior (revoke key → app keeps working, Sentry captures). **Confirmed sandbox (no verified domain) 2026-05-30:** the trial email delivered only because the recipient is the Resend account owner. **Phase 3.3 hard prerequisite — verify a Resend domain** before the team-invitation email can be manually verified, since sandbox rejects any non-owner recipient.
 - **Welcome / VerifyEmail / PasswordReset send call-sites** — the templates + senders exist, but Supabase Auth currently sends its own confirm/reset emails (Phase 1 templates live in the Supabase dashboard). Wiring our own Welcome/Verify/Reset sends (if we replace the Supabase defaults) is a later decision; not required by 3.1.
 
 ### 7. Known issues
 
 - `lib/email.ts` `FROM_EMAIL` falls back to Resend's sandbox sender (`onboarding@resend.dev`) when the env var is unset — only delivers to the Resend account owner. Production sets `FROM_EMAIL` to a verified-domain address.
-- `EmailLayout` now has a default export purely so the preview server renders its chrome rather than a "no default export" error; templates still import the named export. To be confirmed during the manual preview step.
+- `EmailLayout` now has a default export purely so the preview server renders its chrome rather than a "no default export" error; templates still import the named export. **Confirmed in the `npm run email` preview 2026-05-30.**
 - Two env-default `??` branches in `lib/email.ts` (`FROM_EMAIL`/`SITE_URL`) are uncovered (env is always set in tests) — cosmetic, well above threshold.
 
 ### 8. What surprised me
