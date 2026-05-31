@@ -5,6 +5,71 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 
 ---
 
+## Team domain split into `lib/team.ts` (members) + `lib/invitations.ts`
+**Decision:** Member management (`listMembers`, `removeMember`, `changeMemberRole`) lives in `lib/team.ts`; invitation flows (`listPendingInvitations`, `inviteMember`, `acceptInvitation`, `revokeInvitation`) live in `lib/invitations.ts`. The shared `fetchMembers` / `isOwnerOrAdmin` / `ServerClient` are exported from `lib/team.ts` and imported by `lib/invitations.ts` (one-directional dependency, no barrel file).
+**Why:** A single combined module hit 506 lines — well past the 300-line soft limit (the same trigger that split `webhook-helpers.ts` out of `webhooks.ts` in 3.1). Splitting on the members-vs-invitations seam keeps each module cohesive (~188 / ~327 lines) without a re-export barrel (`code.md` discourages barrels > 5 entries).
+**Alternatives rejected:**
+- Keep one 506-line file — over the soft limit; the audit flagged it.
+- A `lib/team/index.ts` barrel re-exporting both — barrel of 7 entries, against the rule; routes/tests import from the specific module instead.
+**Date:** 2026-05-31
+
+---
+
+## Team domain reads the full member set once for role checks
+**Decision:** `inviteMember` / `removeMember` / `changeMemberRole` / `revokeInvitation` fetch the whole `workspace_members` set for the workspace in a single query (`fetchMembers`), then derive both the actor's role and the target's role from that array — rather than issuing two separate single-row lookups.
+**Why:** A workspace has at most `memberLimit` rows (≤10 on Pro), so reading the set is cheap, and it keeps the explicit owner/admin authorization check (which yields friendly FORBIDDEN errors instead of RLS's silent 0-row writes) to one round-trip. It also sidesteps the single-response-per-table limitation of the shared Supabase test mock (two same-table single lookups can't both be configured).
+**Alternatives rejected:**
+- Two `.maybeSingle()` lookups (actor row + target row) — two round-trips and untestable with the canonical mock.
+- Rely on RLS alone — RLS silently writes 0 rows for a non-owner/admin, producing a confusing "success", so an explicit check is needed regardless.
+**Date:** 2026-05-31
+
+---
+
+## "Already a member?" check resolves member emails (bounded by team size)
+**Decision:** `inviteMember` detects an already-a-member invite by resolving each existing member's email via `auth.admin.getUserById` (service role) and comparing to the invited address — bounded by the member count — rather than resolving the invited email → user id.
+**Why:** `invitations` are keyed by email but `workspace_members` is keyed by `user_id`, and `profiles` stores no email. Supabase's admin API has no email→user lookup (only `getUserById` / a full `listUsers` scan). Resolving the bounded member set (≤10) avoids both a full-user-table scan and the page-size correctness cliff of `listUsers`.
+**Alternatives rejected:**
+- `auth.admin.listUsers()` + `.find(email)` — O(all users) and paginated (a perPage cliff); a real correctness hazard beyond one page.
+- Skip the check, rely on the `UNIQUE(workspace_id,user_id)` constraint at accept time — loses the at-invite UX signal the spec requires.
+**Date:** 2026-05-31
+
+---
+
+## Pending-invite dedup is enforced by the DB, not a pre-check
+**Decision:** `inviteMember` inserts the invitation directly and maps a unique-violation error (Postgres `23505`, or a duplicate/unique message) to a friendly "already a pending invitation" result, instead of pre-querying for an existing pending invite.
+**Why:** The partial-unique index `(workspace_id, email) WHERE accepted_at IS NULL` already guarantees one pending invite per email. Letting the DB reject the duplicate is race-safe (a pre-check + insert is a TOCTOU window) and avoids a second query on the same table (which the shared mock can't distinguish from the insert read-back).
+**Alternatives rejected:**
+- `SELECT ... WHERE accepted_at IS NULL` before insert — racy and an extra round-trip.
+**Date:** 2026-05-31
+
+---
+
+## `acceptInvitation` runs as the service role and is idempotent
+**Decision:** Invitation acceptance uses the service-role client and, before inserting membership, checks for an existing `workspace_members` row; if present it marks `accepted_at` without re-inserting or re-incrementing usage. The `accepted_at` update is best-effort (logged, not fatal) since the membership row is the source of truth.
+**Why:** The accepting user is authenticated but not yet a member, so RLS would block both the membership insert and the invitation update — service role is required. Idempotency makes a replayed accept link harmless, and not hard-failing on a late `accepted_at` write avoids telling a user "couldn't join" after they already joined.
+**Alternatives rejected:**
+- User-scoped client — blocked by RLS (not a member yet).
+- Hard-fail if `accepted_at` update errors — would surface a false failure after a successful join.
+**Date:** 2026-05-31
+
+---
+
+## Team API errors map to HTTP via a shared `statusForCode`; LIMIT_EXCEEDED → 403
+**Decision:** The five team routes translate an `ApiError.code` to an HTTP status through `lib/http.ts → statusForCode`. `LIMIT_EXCEEDED` maps to **403** (per the Phase 3 spec), alongside `FORBIDDEN`.
+**Why:** One mapping table keeps five routes consistent and is unit-tested directly. The spec explicitly calls for "403 with LIMIT_EXCEEDED" on the member cap, so the member-limit refusal is treated as a permission-style 403 (resolvable by upgrading) rather than 402/409.
+**Date:** 2026-05-31
+
+---
+
+## `teamRole` + `teamRevoke` rate limiters added; shared `zodFieldErrors` extracted
+**Decision:** Added `teamRole` and `teamRevoke` sliding-window limiters (10/min, keyed by `workspace.id`) even though `security.md`'s table enumerates only invite/accept/remove. Extracted the Zod field-error flattener into `lib/validation/errors.ts` and used it across the new routes.
+**Why:** Role-change and revoke are workspace-scoped write surfaces and deserve their own buckets for clean observability, mirroring `teamRemove`. The field-error flattener was duplicated in the checkout route and `settings/actions.ts`; the team work is the third+ copy, which is the agreed trigger to extract it (the two existing copies can adopt it later).
+**Alternatives rejected:**
+- Reuse `teamRemove` for role/revoke — conflates three distinct surfaces in one bucket / prefix.
+**Date:** 2026-05-31
+
+---
+
 ## Accepted postcss XSS advisory (transitive via Next 15)
 **Decision:** Accept the moderate-severity `postcss <8.5.10` XSS advisory rather than running `npm audit fix --force`. Do not override the postcss version via package.json `overrides`.
 **Why:** The vulnerability (`GHSA-qx2v-qp2m-jg93`) is exploitable only when **untrusted CSS** is processed via postcss's stringify output. Every line of CSS in this project is authored by us — Tailwind utilities + our own `globals.css` — never user-supplied. The fix `npm audit fix --force` proposes (downgrading Next to `9.3.3`) would destroy the project. The actual fix lives upstream in Next 16.3+ which we cannot adopt without revisiting the Next 15 pin. Will re-evaluate when we revisit Next 16.

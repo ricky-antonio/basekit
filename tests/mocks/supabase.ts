@@ -3,7 +3,7 @@ import { vi } from "vitest"
 // Represents the return shape of a single chainable query
 interface MockQueryResult<T> {
   data: T | null
-  error: { message: string } | null
+  error: { message: string; code?: string } | null
 }
 
 // Per-table response registry — tests call mockSupabaseFrom to configure
@@ -19,6 +19,19 @@ export interface CapturedWrite {
   options?: unknown
 }
 const writes: CapturedWrite[] = []
+
+// Filter capture — records chainable comparison filters (eq/is/in/…) so query
+// functions can assert the filter they applied (e.g. `accepted_at IS NULL`).
+export interface CapturedFilter {
+  table: string
+  method: string
+  args: unknown[]
+}
+const filters: CapturedFilter[] = []
+
+export function getSupabaseFilters(table?: string): CapturedFilter[] {
+  return table ? filters.filter((f) => f.table === table) : filters
+}
 
 export function getSupabaseWrites(): CapturedWrite[] {
   return writes
@@ -44,6 +57,7 @@ export function resetSupabaseMock() {
   tableResponses.clear()
   rpcResponses.clear()
   writes.length = 0
+  filters.length = 0
   mockAuthData.adminUser = null
 }
 
@@ -56,20 +70,25 @@ function makeQueryBuilder(table: string) {
     return chain
   }
 
+  const recordFilter = (method: string, args: unknown[]) => {
+    filters.push({ table, method, args })
+    return chain
+  }
+
   const chain = {
     select: vi.fn().mockReturnThis(),
     insert: vi.fn((payload: unknown) => record("insert", payload)),
     update: vi.fn((payload: unknown) => record("update", payload)),
     upsert: vi.fn((payload: unknown, options?: unknown) => record("upsert", payload, options)),
     delete: vi.fn(() => record("delete", null)),
-    eq: vi.fn().mockReturnThis(),
-    neq: vi.fn().mockReturnThis(),
-    in: vi.fn().mockReturnThis(),
-    is: vi.fn().mockReturnThis(),
-    gt: vi.fn().mockReturnThis(),
-    gte: vi.fn().mockReturnThis(),
-    lt: vi.fn().mockReturnThis(),
-    lte: vi.fn().mockReturnThis(),
+    eq: vi.fn((...args: unknown[]) => recordFilter("eq", args)),
+    neq: vi.fn((...args: unknown[]) => recordFilter("neq", args)),
+    in: vi.fn((...args: unknown[]) => recordFilter("in", args)),
+    is: vi.fn((...args: unknown[]) => recordFilter("is", args)),
+    gt: vi.fn((...args: unknown[]) => recordFilter("gt", args)),
+    gte: vi.fn((...args: unknown[]) => recordFilter("gte", args)),
+    lt: vi.fn((...args: unknown[]) => recordFilter("lt", args)),
+    lte: vi.fn((...args: unknown[]) => recordFilter("lte", args)),
     order: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
     range: vi.fn().mockReturnThis(),
