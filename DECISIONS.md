@@ -5,6 +5,16 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 
 ---
 
+## Invitee-side accept flow split into `lib/invitation-accept.ts`
+**Decision:** The invitee-side flow — `getInvitationByToken` (public token preview) and `acceptInvitation` (+ its `memberLimitReached` helper and `ACCESS_GRANTING_STATUSES`) — lives in `lib/invitation-accept.ts`. The owner-side flow — `listPendingInvitations`, `inviteMember`, `revokeInvitation` — stays in `lib/invitations.ts`. No cross-import between them (the accept module is fully self-contained on the service role).
+**Why:** After adding the 3.3 accept-preview + member-limit re-gate, `lib/invitations.ts` hit 452 lines — over the 300-line soft limit (the same trigger that split `lib/team.ts` in 3.2, flagged again by the 3.3 audit). The owner-side/invitee-side seam is the natural one: the invitee-side runs entirely as the service role (the accepting/previewing user isn't a member yet), the owner-side is RLS-scoped owner/admin actions. Result: 241 + 224 lines, no barrel.
+**Alternatives rejected:**
+- Keep one 452-line file — over the limit; the audit flagged it.
+- Split by individual function into 3+ files — over-fragmented; one seam is enough.
+**Date:** 2026-06-02
+
+---
+
 ## Enriched member data is served by a service-role route, never the team Server Component
 **Decision:** The team page's member rows (display name, avatar, email) come from a new `GET /api/team/members` route handler that calls `listTeamMembers` (service role). A client wrapper (`TeamMembers`) fetches it and shows a skeleton; the page itself never touches the service-role client.
 **Why:** RLS exposes only the caller's *own* profile (`profiles_select_own`) and no `auth.users` email to a teammate, so enriched member display needs the service role. `code.md`/`security.md` forbid the service-role client in a Server Component, so the enrichment lives in a route handler (allowed) and reaches the page via `fetch`. `getWorkspace` resolves the workspace via the caller's own membership, so reaching the enrichment already proves membership; the data returned is only the caller's own workspace.

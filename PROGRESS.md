@@ -333,9 +333,28 @@ Team management is now a real, end-to-end UI. An owner/admin opens `/team`, sees
 
 `invitations_select_by_token` is documented in `schema.md` as a `USING (true)` policy but **does not exist** in the live `combined.sql` migration — so an anon/non-member genuinely cannot read an invitation by token via RLS. That (plus `profiles_select_own` and `auth.users` emails being unreachable) is what forced the public accept-page preview and the member enrichment through service-role route handlers rather than the RLS client. The schema doc and the applied migration had drifted on that one policy.
 
-### 9. Session audit
+### 9. Session audit (run post-commit per user request)
 
-Per user request, the session audit runs **after** this commit (the normal order is audit→commit). Findings + resolutions will be appended here.
+Ran `.claude/session-audit.md` over the session diff (re-read CLAUDE.md + the three rules files + the
+Phase 3 spec first). **No 🔴.** One 🟠 + six 🟡; the user chose **fix-both** (the 🟠 + the primary tap
+target), the rest deferred. Resolved in a follow-up commit:
+- 🟠 **`lib/invitations.ts` was 452 lines** (over the 300 soft limit — the same trigger that split
+  `team.ts` in 3.2) → **fixed**: split the invitee-side flow (`getInvitationByToken`, `acceptInvitation`,
+  `memberLimitReached`, preview types, `ACCESS_GRANTING_STATUSES`) into `lib/invitation-accept.ts`
+  (224 lines); `lib/invitations.ts` is now 241 (list/invite/revoke). Updated 4 source + 4 test imports.
+  See DECISIONS → "Invitee-side accept flow split into `lib/invitation-accept.ts`".
+- 🟡 **Primary invite-submit tap target** was `min-h-9` (36px) → **fixed**: bumped to `min-h-11` (44px).
+- 🟡 **Deferred** (with rationale): OAuth signup doesn't carry the `bk_invite` cookie (Google invitees
+  bootstrap a new workspace instead of joining — email/existing-account paths work); secondary row-action
+  buttons remain sub-44px (consistent with the existing app; Phase 5 polish); `listTeamMembers` enrichment
+  reads aren't try/caught (a *thrown* admin error → 500, matches the 3.2 `inviteMember` pattern);
+  existing-account invitee joins as a 2nd membership but `getWorkspace` returns the oldest (v1
+  single-workspace limit, v2); `cookies().delete("bk_invite")` on the callback redirect is unverified
+  live (standard mechanism; confirm in the live pass); team page does two member reads (RLS role +
+  enriched fetch — minor, acceptable).
+
+All four gates re-run green after the fixes (430 tests; coverage 86.12/78.82/87.38/88.78; `invitations.ts`
+now 92.85% covered). The honestly-unverified items remain the whole live/manual suite (see In progress).
 
 ## Checkpoint 3.2 closeout — 2026-05-31
 

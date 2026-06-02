@@ -121,7 +121,7 @@ export default function InviteForm({ currentPlanLabel }: InviteFormProps) {
           </select>
         </div>
 
-        <Button type="submit" disabled={submitting} className="min-h-9 sm:w-auto">
+        <Button type="submit" disabled={submitting} className="min-h-11 sm:w-auto">
           {submitting ? "Inviting…" : "Send invitation"}
         </Button>
       </form>

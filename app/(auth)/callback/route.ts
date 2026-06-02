@@ -3,7 +3,7 @@ import { cookies } from "next/headers"
 import type { EmailOtpType, User } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 import { getWorkspace, bootstrapWorkspace } from "@/lib/workspace"
-import { acceptInvitation } from "@/lib/invitations"
+import { acceptInvitation } from "@/lib/invitation-accept"
 
 // Same-origin, single-leading-slash paths only. Rejects protocol-relative
 // ("//evil.com"), backslash variants ("/\evil.com" which Chrome normalises),

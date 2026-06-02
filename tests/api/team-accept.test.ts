@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth", () => ({ requireAuth: mocks.requireAuth }))
 vi.mock("@/lib/ratelimit", () => ({ checkRateLimit: mocks.checkRateLimit }))
-vi.mock("@/lib/invitations", () => ({ acceptInvitation: mocks.acceptInvitation }))
+vi.mock("@/lib/invitation-accept", () => ({ acceptInvitation: mocks.acceptInvitation }))
 
 import { POST } from "@/app/api/team/accept/route"
 

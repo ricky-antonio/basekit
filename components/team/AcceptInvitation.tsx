@@ -7,7 +7,7 @@ import toast from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import AcceptInvitationCard from "@/components/team/AcceptInvitationCard"
-import type { InvitationPreview } from "@/lib/invitations"
+import type { InvitationPreview } from "@/lib/invitation-accept"
 
 const NOT_FOUND: InvitationPreview = {
   status: "not_found",

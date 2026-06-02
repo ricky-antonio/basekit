@@ -21,7 +21,7 @@ vi.mock("@/lib/workspace", () => ({
   bootstrapWorkspace: mocks.bootstrapWorkspace,
 }))
 
-vi.mock("@/lib/invitations", () => ({ acceptInvitation: mocks.acceptInvitation }))
+vi.mock("@/lib/invitation-accept", () => ({ acceptInvitation: mocks.acceptInvitation }))
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: mocks.cookieGet, delete: mocks.cookieDelete }),

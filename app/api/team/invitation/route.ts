@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getInvitationByToken } from "@/lib/invitations"
+import { getInvitationByToken } from "@/lib/invitation-accept"
 import { checkRateLimit } from "@/lib/ratelimit"
 
 function ipFromRequest(request: Request): string {

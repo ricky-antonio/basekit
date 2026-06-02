@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth"
-import { acceptInvitation } from "@/lib/invitations"
+import { acceptInvitation } from "@/lib/invitation-accept"
 import { checkRateLimit } from "@/lib/ratelimit"
 import { acceptSchema } from "@/lib/validation/team"
 import { zodFieldErrors } from "@/lib/validation/errors"

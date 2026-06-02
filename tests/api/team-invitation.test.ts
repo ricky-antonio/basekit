@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   checkRateLimit: vi.fn(),
 }))
 
-vi.mock("@/lib/invitations", () => ({ getInvitationByToken: mocks.getInvitationByToken }))
+vi.mock("@/lib/invitation-accept", () => ({ getInvitationByToken: mocks.getInvitationByToken }))
 vi.mock("@/lib/ratelimit", () => ({ checkRateLimit: mocks.checkRateLimit }))
 
 import { GET } from "@/app/api/team/invitation/route"

@@ -31,13 +31,8 @@ vi.mock("@/lib/activity", () => ({ logActivity: mocks.logActivity }))
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }))
 
 import { listMembers, listTeamMembers, removeMember, changeMemberRole } from "@/lib/team"
-import {
-  listPendingInvitations,
-  inviteMember,
-  acceptInvitation,
-  revokeInvitation,
-  getInvitationByToken,
-} from "@/lib/invitations"
+import { listPendingInvitations, inviteMember, revokeInvitation } from "@/lib/invitations"
+import { acceptInvitation, getInvitationByToken } from "@/lib/invitation-accept"
 
 const WORKSPACE_ID = "ws-1"
 const FUTURE = new Date(Date.now() + 60 * 60 * 1000).toISOString()
