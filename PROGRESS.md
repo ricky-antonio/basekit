@@ -7,22 +7,20 @@ Phase 3 — Team + Invitations + Email — **IN PROGRESS** (Phase 2 complete + c
 `ff39dd1`; coverage thresholds raised to 78/78/73/78)
 
 ## Current checkpoint
-Checkpoint 3.2 — Team domain library + API routes — **COMPLETE: code + session audit +
-audit fix, all 4 gates green. Manual verification (curl invite/accept, RLS two-account on
-`invitations`+`workspace_members`, activity-log via SQL) deferred to a live session — and the
-live invite *email* is gated on a verified Resend domain (3.1 known issue).** Built:
-`lib/team.ts` (members: `listMembers`/`removeMember`/`changeMemberRole` + shared
-`fetchMembers`/`isOwnerOrAdmin`) and `lib/invitations.ts`
-(`listPendingInvitations`/`inviteMember`/`acceptInvitation`/`revokeInvitation`) — split out of one
-506-line file during the audit (now 188/327). `lib/validation/team.ts` (5 Zod schemas),
-`lib/validation/errors.ts` (shared `zodFieldErrors`, extracted from a 3rd copy), `lib/http.ts`
-(`statusForCode`, LIMIT_EXCEEDED→403 per spec), `teamRole`+`teamRevoke` rate limiters, and 5 API
-routes (`/api/team/{invite,accept,remove,role,revoke}`). Every team action writes the matching
-`activity_log` row (`member.invited/joined/removed/role_changed`; revoke has no action per the task
-list). **375 tests pass; coverage 86.02/79.19/88.48/88.53 (> 78/73/78/78).** Next: commit, then
-Checkpoint 3.3 — Team UI (and the deferred live/manual verification once a Resend domain is set up).
+Checkpoint 3.3 — Team UI — **CODE-COMPLETE: all 4 gates green, committed. Session audit
+run AFTER commit (per user request) — findings appended to the 3.3 closeout below.** Built the
+read layer (`listTeamMembers` service-role enrichment + `GET /api/team/members`; `getInvitationByToken`
++ public `GET /api/team/invitation`), the member-limit re-gate at accept (closes the 3.2 overshoot
+🟠#2), 7 team components (`RoleBadge`, `MemberTable` w/ optimistic remove+role, `TeamMembers` fetch
+wrapper, `InviteForm`, `PendingInviteRow`, `AcceptInvitationCard`, `AcceptInvitation`), 3 pages
+(`/team` rewrite, `team/loading.tsx`, public `/team/accept`), and the invite→signup→callback flow
+(`bk_invite` httpOnly cookie set by `signupAction`, consumed by `/callback` → `acceptInvitation`).
+Team UI mutations reuse the tested 3.2 API routes via `fetch`. **430 tests pass; coverage
+86.12/78.82/87.38/88.78 (> 78/73/78/78).** Next: run the session audit, then the **live/manual
+verification** (deferred — see In progress) once a Resend domain is set up, before declaring Phase 3 done.
 
 ## Completed
+- [2026-06-02] Phase 3.3 — Team UI: `/team` page (member summary + InviteForm + MemberTable + pending invitations), public `/team/accept`, invite→signup→join loop (`bk_invite` cookie + callback `acceptInvitation`), 7 team components, 2 read routes (`/api/team/members`, `/api/team/invitation`), service-role member enrichment, and the member-limit re-gate at accept (closes 3.2 🟠#2). 430 tests; coverage 86.12/78.82/87.38/88.78. Code-complete + committed; audit run post-commit; live/manual verification deferred. (See "Checkpoint 3.3 closeout — 2026-06-02" below.)
 - [2026-05-31] Phase 3.2 — Team domain (`lib/team.ts` + `lib/invitations.ts`) + 5 API routes + activity-log writes; shared `zodFieldErrors`/`statusForCode` helpers; supabase mock extended with filter capture. Code + audit complete (split the 506-line module on the audit's flag); manual curl/RLS/activity-log verification deferred to a live session. (See "Checkpoint 3.2 closeout — 2026-05-31" below.)
 - [2026-05-30] Phase 3.1 — Email infrastructure + 6 React Email templates; Phase 2 webhook stubs wired to real sends; webhook helpers extracted under the 300-line limit; coverage thresholds → 78/78/73/78. Code + audit complete; live email/preview verification deferred (needs verified Resend domain). (See "Checkpoint 3.1 closeout — 2026-05-30" below.)
 - [2026-05-30] Phase 2 manual verification — full billing lifecycle verified live (Checkout→webhook→Pro→portal→cancel→past-due→rate-limit 429→mobile; RLS 14/14); found + fixed 4 date/UX bugs; all 4 gates green. (See "Phase 2 manual verification — 2026-05-30" below.)
@@ -35,23 +33,25 @@ Checkpoint 3.3 — Team UI (and the deferred live/manual verification once a Res
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- **Checkpoint 3.2 is code-complete + audited (all 4 gates green).** Pending: commit, then start
-  Checkpoint 3.3 — Team UI (`/team` page + `MemberTable`/`InviteForm`/`RoleBadge`/`PendingInviteRow`,
-  public `/team/accept` page, signup `?invite=<token>` integration, callback `acceptInvitation` wiring).
-  **Deferred into 3.3, do before declaring Phase 3 done:**
-  1. **3.2 manual verification** (needs `npm run dev` + live DB): invite via curl with an owner bearer
-     token → invitation row + email; accept via curl with token → membership + usage incremented;
-     remove → loss of access; Pro-at-10 → 11th invite `LIMIT_EXCEEDED`; rate-limit invite (11/h) → 11th
-     rejected; **RLS two-account test on `invitations` + `workspace_members`**; activity-log rows via SQL
-     Editor with correct `actor_id`/metadata. **Partially done 2026-06-02:** the DB/RLS write-path slice
-     (owner invite-insert under RLS, service-role accept = membership insert + `usage.members` 1→2 +
-     `accepted_at`, and members read-isolation) is smoke-verified via `scripts/team-smoke.mjs` (12/12).
-     **Still pending:** the HTTP route layer (cookie auth / Zod / rate-limit / `statusForCode`), the live
-     invite email, and the activity-log SQL check — best done through the 3.3 UI.
-  2. **Live invite email** — gated on a **verified Resend domain** (3.1 known issue); batch with the
-     deferred 3.1 live-email pass (`invoice.payment_failed`, mobile email-client check).
-  3. **Member-limit hardening** (audit 🟠#2, see Known issues) — close the multiple-pending-invites
-     overshoot when the accept flow is finalized in 3.3.
+- **Phase 3 is code-complete (3.1 + 3.2 + 3.3 all built, audited, gates green).** Before declaring
+  Phase 3 *done*, the remaining work is the **live/manual verification suite** (needs `npm run dev`
+  + live DB; the invite email needs a **verified Resend domain** — 3.1 known issue):
+  1. **Browser invite→accept→join loop** — owner invites from `/team` → email arrives → unregistered
+     invitee clicks link → `/team/accept` → signup prefilled → after verify lands on the *existing*
+     workspace `/dashboard` (not a new one); existing-account invitee → accept card → joins.
+  2. **HTTP route layer live** — invite/remove/role/revoke through the real routes (cookie auth / Zod /
+     rate-limit / `statusForCode`); member removal revokes access on next request.
+  3. **Limits** — Free (1 member) → invite shows `UpgradePrompt`; Pro at 10 → 11th invite blocked;
+     **accept-time re-gate** (the new service-role check) verified against a real at-cap workspace.
+  4. **RLS two-account re-verify** on `invitations` + `workspace_members` (`scripts/rls-verify.mjs`).
+  5. **Activity-log SQL spot-check** — `member.invited/joined/removed/role_changed` rows with correct
+     `actor_id`/metadata.
+  6. **Live invite email** — gated on a verified Resend domain; batch with the deferred 3.1 live-email
+     pass (`invoice.payment_failed`, mobile email-client check).
+  Partial (2026-06-02, pre-3.3): the DB/RLS write-path slice was smoke-verified via
+  `scripts/team-smoke.mjs` (12/12).
+- **Session audit for 3.3 runs after this commit** (per user request) — findings + resolutions will be
+  appended to the 3.3 closeout.
 
 ## Phase 2 — entry notes (read before Checkpoint 2.1)
 Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-ready, no blockers**: `subscriptions` has all Stripe columns + `updated_at` trigger + `unique(workspace_id)`/`unique(stripe_customer_id)`; `usage` has `unique(workspace_id, resource)` + `count >= 0` with `increment_usage` (upsert) / `decrement_usage` (clamps at 0); `projects` RLS = member insert/select/update + owner/admin-only delete; `stripe_events` = `id`/`type`/`processed_at` (no RLS); `service_role` grants fixed; `usage_select_members` exists so enforcement reads don't fail open. Watch-items:
@@ -89,8 +89,10 @@ Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-read
 - `npm audit` reports a moderate-severity `postcss` XSS advisory pulled in transitively via Next 15. **Accepted, not fixed** — see DECISIONS.md → "Accepted postcss XSS advisory (transitive via Next 15)". Not exploitable in our context (we author all CSS); the upstream fix requires Next 16.3+. Re-evaluate when we revisit Next 16.
 - **Resend has zero verified domains** — the API key is valid but no domain is verified, so email sends from a custom `FROM_EMAIL` will be rejected; only Resend's sandbox-to-self works. **Phase 3.1 is built + unit-tested with Resend mocked, but the live email-send + `npm run email` preview manual-verification steps remain blocked on this** (see In progress → deferred). `lib/email.ts` falls back to Resend's sandbox sender (`onboarding@resend.dev`) when `FROM_EMAIL` is unset, which only delivers to the account owner's address. Verify a domain (or use the sandbox sender) before running the live email pass.
 - **`service_role` table grants were missing** (found + fixed during Phase 1 verification) — see "Phase 1 verification" below + DECISIONS.md → "Explicit table grants for SQL-Editor-created tables". Resolved; flagged here for the audit trail.
-- **Member-limit can be overshot via multiple pending invites (3.2 audit 🟠#2)** — `inviteMember`'s `canAddMember` gate counts only *current* members (invites don't bump the counter) and `acceptInvitation` does not re-gate, so a Pro workspace at 1 member could issue many invites (each sees count=1) and overshoot 10 once they all accept. The phase Goal ("member count enforced against plan limits") is met for the spec's explicit at-cap test, but this hole remains. The clean fix (count pending invitations toward the limit at invite, or a **service-role** limit check at accept — plain `canAddMember` fails open at accept because a not-yet-member can't read usage/subscription under RLS) is **deferred to Checkpoint 3.3**, where the accept flow is finalized. Free (limit 1) can't invite at all, so this is Pro-only.
-- **Phase 3.2 team flows are code-complete; the DB/RLS layer is smoke-verified, the HTTP routes are not** — invite/accept/remove/role/revoke are unit + integration tested (375 tests, Supabase/Resend mocked). The **DB/RLS write paths** (owner invite-insert under RLS, service-role accept = membership insert + `usage.members` increment + `accepted_at`, members read-isolation) passed a live smoke test 2026-06-02 (`scripts/team-smoke.mjs`, 12/12). **Still unverified live:** the HTTP route layer (cookie auth / Zod / rate-limit / `statusForCode`), the activity-log SQL check, and the invite *email* (needs a verified Resend domain) — deferred into 3.3's UI pass (see In progress).
+- ~~**Member-limit can be overshot via multiple pending invites (3.2 audit 🟠#2)**~~ — **RESOLVED in 3.3**: `acceptInvitation` now re-gates the plan member limit before inserting the membership, reading `subscriptions` + `usage` via the **service role** (the not-yet-member can't read them under RLS). At/over cap → `LIMIT_EXCEEDED`; skipped on the idempotent already-member replay; fails open on a read error. Unit-tested (`acceptInvitation member-limit hardening`). See DECISIONS.md → "Member limit is re-gated at accept time". Still needs the live at-cap browser check (deferred — see In progress).
+- **Phase 3 team UI (3.3) is code-complete + unit/integration-tested (430 tests), but the live stack is not yet exercised** — the browser invite→signup→join loop, the HTTP route layer end-to-end, the accept-time member-limit re-gate against a real at-cap workspace, RLS two-account re-verify on `invitations`+`workspace_members`, the activity-log SQL spot-check, and the live invite email (verified Resend domain) are all **deferred** (see In progress). The DB/RLS write-path slice was smoke-verified 2026-06-02 (`scripts/team-smoke.mjs`, 12/12).
+- **Enriched member data + the public invitation preview use the service role in route handlers (not the team Server Component)** — `GET /api/team/members` and `GET /api/team/invitation` bypass RLS to read cross-member profiles/emails + the workspace name (unreadable to a non-member under RLS), gated on verified membership (members route) or the token-as-secret (invitation route, IP-rate-limited). Deliberate; see DECISIONS.md → "Enriched member data is served by a service-role route…" and "Public invitation preview…". Flagged here for the security audit trail.
+- **Acceptance is not bound to the invited email (bearer-token model)** — any verified account holding a valid invite token (via the `bk_invite` cookie or the accept page) joins the workspace; the token is a 7-day single-use secret. Acceptable for v1; revisit if invite-link leakage becomes a concern. See DECISIONS.md → "Invite-accept signup flow carries the token in an httpOnly `bk_invite` cookie".
 - **Google OAuth consent shows `…supabase.co`** on the account-chooser ("to continue to …"). The OAuth consent **App name is already `basekit`** (it shows on the permission screen), but the account-picker line reflects the OAuth client's redirect/authorized domain, which is Supabase's — App-name branding cannot change it. Removing it requires a **Supabase custom auth domain** (e.g. `auth.basekit.com`): needs a registered domain + Supabase **Pro Custom Domain add-on** + DNS + updating the Google client's authorized redirect URI + Supabase Site/redirect URLs. **Phase 5 / production task** — not actionable until a domain is wired.
 
 ## Setup notes
@@ -254,6 +256,86 @@ Verified via `scripts/rls-verify.mjs` (new) — a reproducible form of setup.md 
 
 _(Appended chronologically as checkpoints complete. Newest at the top.
 Each closeout follows the 8-item template defined in CLAUDE.md → Checkpoint protocol.)_
+
+## Checkpoint 3.3 closeout — 2026-06-02
+
+### 1. Planned vs delivered
+
+**Pages**
+- ✅ `app/(app)/team/page.tsx` — `MemberTable` (via `TeamMembers`) + `InviteForm` + pending invitations list + member-usage summary, role-gated (invite/pending shown only to owner/admin)
+- ✅ `app/(app)/team/loading.tsx` — skeleton
+- ✅ `app/team/accept/page.tsx` — public shell (outside `(app)`), reads `?token` + auth, renders `AcceptInvitation`
+- ✅ `app/(auth)/signup/page.tsx` handles `?invite=<token>` + `?email=<email>` — split into server `page.tsx` + client `SignupForm`
+- ✅ `app/(auth)/callback/route.ts` calls `acceptInvitation` (instead of `bootstrapWorkspace`) when the `bk_invite` cookie is present
+
+**Components**
+- ✅ `MemberTable` — avatar, name, email, role badge, joined date, actions; optimistic remove + role change with revert+toast; responsive card-stacking rows. ⚠️ Split into a presentational `MemberTable` (props) + a `TeamMembers` fetch wrapper (skeleton) — the enriched roster can't be server-rendered (service-role), so it's fetched.
+- ✅ `InviteForm` — email + role + submit; reactive `<UpgradePrompt>` on `LIMIT_EXCEEDED`; "Inviting…" + disabled. ⚠️ Native `<select>` for role (not the shadcn `Select`) for testability + to avoid radix pointer-capture flake in jsdom.
+- ✅ `RoleBadge` — owner=brand / admin=info / member=neutral, uppercase text label (not color-only)
+- ✅ `PendingInviteRow` — email, role, sent date, Revoke (with a confirm step per the destructive-action rule)
+- ✅ `AcceptInvitationCard` — workspace name, "You've been invited", Accept/Decline (+ create-account CTA when unauthenticated). ⚠️ Presentational; a `AcceptInvitation` wrapper fetches the preview + drives accept/decline.
+
+**Extra (needed for the work / from the design)**
+- ✅ `lib/team.ts → listTeamMembers` (service-role enrichment) + `EnrichedMember`
+- ✅ `lib/invitations.ts → getInvitationByToken` (public preview) + **member-limit re-gate at accept** (closes 3.2 🟠#2)
+- ✅ `GET /api/team/members` + `GET /api/team/invitation` routes; `teamInviteLookup` rate limiter
+- ✅ Team UI mutations reuse the 3.2 `/api/team/{invite,remove,role,revoke}` routes via `fetch` (no duplicate Server Actions)
+
+### 2. In plain English (delivered)
+
+Team management is now a real, end-to-end UI. An owner/admin opens `/team`, sees the member roster (name, email, avatar, role, joined date), invites teammates by email (role-selectable; over the plan limit shows an upgrade prompt), and sees pending invitations they can revoke. Removing a member or changing a role updates the table instantly and rolls back with a toast if the server says no. The owner row and your own row are protected from removal/role changes, and plain members see a read-only roster. An invitee clicks the email link, lands on a polished public accept page that shows who invited them and to which workspace; if they have no account, the signup form is pre-filled and a cookie carries the invite through email verification so they join the *existing* workspace instead of creating a new one; if they're already signed in, they accept in one click. The member limit is now enforced a second time at accept (service role), closing the multiple-pending-invites overshoot from 3.2. **Nothing has been exercised against the live stack yet** — the browser loop, the live invite email (needs a verified Resend domain), RLS re-verify, and the activity-log SQL check are deferred (see In progress).
+
+### 3. Done-when verification
+
+- ✅ Owner invites teammate from `/team` → invitation created + email sent — `InviteForm` → `/api/team/invite` (lib + route tested); live email deferred
+- ✅ Invitee (no account) → signup prefilled → joins existing workspace after verify — `signupAction` sets `bk_invite`; `/callback` → `acceptInvitation`, skips bootstrap (tested: `auth-actions`, `auth-callback`)
+- ✅ Invitee (existing account) → accept page → joins — `AcceptInvitation` → `/api/team/accept` (tested)
+- ✅ Owner removes a member → optimistic row removal, rollback+toast on rejection — `MemberTable.test.tsx`
+- ✅ Owner changes role → badge updates optimistically (+ revert on failure) — `MemberTable.test.tsx`
+- ✅ Mobile: rows stack into a card layout, invite form usable — responsive classes (jsdom asserts the `flex-col` base; real-device check deferred)
+- ✅ All component tests pass — 7 new component test files
+- ✅ `npm run test:coverage` ≥ 78% — **Stmts 86.12 · Branches 78.82 · Funcs 87.38 · Lines 88.78** (thresholds 78/73/78/78)
+- ✅ `npm run type-check` zero errors · `npm run build` zero errors (33 routes incl. `/team`, `/team/accept`, `/api/team/{members,invitation}`)
+- ⚠️ Full Phase 3 manual verification suite — **deferred** (live env + verified Resend domain; see In progress)
+
+### 4. Test files added/changed
+
+- `tests/lib/team.test.ts` (extended +12 — `listTeamMembers` ×4, `getInvitationByToken` ×5, accept member-limit ×2, +1)
+- `tests/api/team-members.test.ts` (new, 4) · `tests/api/team-invitation.test.ts` (new, 4)
+- `tests/components/RoleBadge.test.tsx` (new, 3) · `MemberTable.test.tsx` (new, 9) · `TeamMembers.test.tsx` (new, 2)
+- `tests/components/InviteForm.test.tsx` (new, 6) · `PendingInviteRow.test.tsx` (new, 3)
+- `tests/components/AcceptInvitationCard.test.tsx` (new, 5) · `AcceptInvitation.test.tsx` (new, 4)
+- `tests/api/auth-callback.test.ts` (extended +2 — invite-cookie accept / bootstrap fallback; +next-headers cookies mock)
+- `tests/api/auth-actions.test.ts` (extended +2 — signup sets/omits `bk_invite`; +cookies mock)
+- Net: 375 → **430 tests**
+
+### 5. New DECISIONS.md entries
+
+- Enriched member data is served by a service-role route, never the team Server Component
+- Public invitation preview via an unauthenticated, rate-limited service-role route
+- Team UI reuses the Phase 3.2 API routes via `fetch` (no duplicate Server Actions)
+- Invite-accept signup flow carries the token in an httpOnly `bk_invite` cookie
+- Member limit is re-gated at accept time (service role), closing the pending-invite overshoot
+
+### 6. Deferred items
+
+- **Full Phase 3 live/manual verification** → before declaring Phase 3 done (needs `npm run dev` + live DB + verified Resend domain): browser invite→signup→join loop, HTTP route layer, accept-time re-gate at a real cap, RLS two-account re-verify, activity-log SQL, live invite email. See In progress.
+- **Mobile real-device check** → Phase 3 manual pass.
+
+### 7. Known issues
+
+- **Service-role reads in the two team read routes** (members enrichment + public invitation preview) — deliberate, membership/token gated; mirrored under "Known issues" above with the DECISIONS pointers.
+- **Bearer-token acceptance** (no email binding) — v1 stance; mirrored above.
+- **MemberTable coverage 82.8% stmts / 76.7% branch** — the uncovered lines are the role-change/remove network-`catch` blocks (the `!response.ok` revert paths ARE tested); global coverage well above threshold.
+- **`profiles_select_same_workspace` NOT added** — chose the service-role route over an RLS policy change, so no migration / no RLS re-verify of a new policy was needed (lower operational risk).
+
+### 8. What surprised me
+
+`invitations_select_by_token` is documented in `schema.md` as a `USING (true)` policy but **does not exist** in the live `combined.sql` migration — so an anon/non-member genuinely cannot read an invitation by token via RLS. That (plus `profiles_select_own` and `auth.users` emails being unreachable) is what forced the public accept-page preview and the member enrichment through service-role route handlers rather than the RLS client. The schema doc and the applied migration had drifted on that one policy.
+
+### 9. Session audit
+
+Per user request, the session audit runs **after** this commit (the normal order is audit→commit). Findings + resolutions will be appended here.
 
 ## Checkpoint 3.2 closeout — 2026-05-31
 

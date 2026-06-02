@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { cookies } from "next/headers"
 import type { EmailOtpType, User } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 import { getWorkspace, bootstrapWorkspace } from "@/lib/workspace"
+import { acceptInvitation } from "@/lib/invitations"
 
 // Same-origin, single-leading-slash paths only. Rejects protocol-relative
 // ("//evil.com"), backslash variants ("/\evil.com" which Chrome normalises),
@@ -62,6 +64,20 @@ export async function GET(request: NextRequest) {
   // workspace, so skip bootstrap and send them straight to the reset form.
   if (type === "recovery") {
     return NextResponse.redirect(new URL(next, request.url))
+  }
+
+  // An invite cookie (set by signupAction) means this user is joining an existing
+  // workspace — accept the invitation instead of bootstrapping a new one. Single-use:
+  // clear it regardless of outcome. On failure (expired/full/invalid) fall through so
+  // the new account still ends up with a workspace.
+  const cookieStore = await cookies()
+  const inviteToken = cookieStore.get("bk_invite")?.value
+  if (inviteToken) {
+    cookieStore.delete("bk_invite")
+    const accepted = await acceptInvitation({ token: inviteToken, userId: user.id })
+    if (accepted.ok) {
+      return NextResponse.redirect(new URL(next, request.url))
+    }
   }
 
   const workspaceResult = await getWorkspace(user)

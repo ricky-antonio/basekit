@@ -30,12 +30,13 @@ vi.mock("@/lib/email", () => ({ sendTeamInvitationEmail: mocks.sendTeamInvitatio
 vi.mock("@/lib/activity", () => ({ logActivity: mocks.logActivity }))
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }))
 
-import { listMembers, removeMember, changeMemberRole } from "@/lib/team"
+import { listMembers, listTeamMembers, removeMember, changeMemberRole } from "@/lib/team"
 import {
   listPendingInvitations,
   inviteMember,
   acceptInvitation,
   revokeInvitation,
+  getInvitationByToken,
 } from "@/lib/invitations"
 
 const WORKSPACE_ID = "ws-1"
@@ -544,5 +545,171 @@ describe("changeMemberRole extra paths", () => {
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe("FORBIDDEN")
+  })
+})
+
+describe("listTeamMembers", () => {
+  it("enriches the roster with profile name, avatar, and email", async () => {
+    mockSupabaseFrom("workspace_members", {
+      data: [{ id: "m1", user_id: "owner-1", role: "owner", joined_at: "2026-01-01T00:00:00Z" }],
+      error: null,
+    })
+    mockSupabaseFrom("profiles", {
+      data: [{ id: "owner-1", display_name: "Ada Owner", avatar_url: "https://cdn/a.png" }],
+      error: null,
+    })
+    mockSupabaseAdminUser({ id: "owner-1", email: "owner@example.com" })
+
+    const result = await listTeamMembers(WORKSPACE_ID)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data).toEqual([
+        {
+          id: "m1",
+          userId: "owner-1",
+          role: "owner",
+          joinedAt: "2026-01-01T00:00:00Z",
+          displayName: "Ada Owner",
+          email: "owner@example.com",
+          avatarUrl: "https://cdn/a.png",
+        },
+      ])
+    }
+  })
+
+  it("falls back to the email when the profile name is missing", async () => {
+    mockSupabaseFrom("workspace_members", {
+      data: [{ id: "m2", user_id: "u-2", role: "member", joined_at: "2026-01-02T00:00:00Z" }],
+      error: null,
+    })
+    mockSupabaseFrom("profiles", { data: [{ id: "u-2", display_name: null, avatar_url: null }], error: null })
+    mockSupabaseAdminUser({ id: "u-2", email: "fallback@example.com" })
+
+    const result = await listTeamMembers(WORKSPACE_ID)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data[0]?.displayName).toBe("fallback@example.com")
+      expect(result.data[0]?.avatarUrl).toBeNull()
+    }
+  })
+
+  it("returns an empty list (no enrichment) for a memberless workspace", async () => {
+    mockSupabaseFrom("workspace_members", { data: [], error: null })
+
+    const result = await listTeamMembers(WORKSPACE_ID)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data).toEqual([])
+    expect(mockSupabase.auth.admin.getUserById).not.toHaveBeenCalled()
+  })
+
+  it("returns INTERNAL_ERROR when the roster query fails", async () => {
+    mockSupabaseFrom("workspace_members", { data: null, error: { message: "down" } })
+
+    const result = await listTeamMembers(WORKSPACE_ID)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe("INTERNAL_ERROR")
+  })
+})
+
+describe("getInvitationByToken", () => {
+  it("returns valid with workspace + inviter for a live invitation", async () => {
+    mockSupabaseFrom("invitations", {
+      data: {
+        workspace_id: WORKSPACE_ID,
+        email: "invitee@example.com",
+        role: "member",
+        invited_by: "owner-1",
+        accepted_at: null,
+        expires_at: FUTURE,
+      },
+      error: null,
+    })
+    mockSupabaseFrom("workspaces", { data: { name: "Acme" }, error: null })
+    mockSupabaseFrom("profiles", { data: { display_name: "Ada Owner" }, error: null })
+
+    const preview = await getInvitationByToken("tok")
+
+    expect(preview).toEqual({
+      status: "valid",
+      workspaceName: "Acme",
+      inviterName: "Ada Owner",
+      email: "invitee@example.com",
+      role: "member",
+    })
+  })
+
+  it("returns not_found for an unknown token", async () => {
+    mockSupabaseFrom("invitations", { data: null, error: null })
+    const preview = await getInvitationByToken("missing")
+    expect(preview.status).toBe("not_found")
+  })
+
+  it("returns accepted for an already-accepted invitation", async () => {
+    mockSupabaseFrom("invitations", {
+      data: { workspace_id: WORKSPACE_ID, email: "x@y.com", role: "member", invited_by: "owner-1", accepted_at: "2026-01-01T00:00:00Z", expires_at: FUTURE },
+      error: null,
+    })
+    const preview = await getInvitationByToken("tok")
+    expect(preview.status).toBe("accepted")
+    expect(preview.email).toBe("x@y.com")
+  })
+
+  it("returns expired for a past-expiry invitation", async () => {
+    mockSupabaseFrom("invitations", {
+      data: { workspace_id: WORKSPACE_ID, email: "x@y.com", role: "admin", invited_by: "owner-1", accepted_at: null, expires_at: PAST },
+      error: null,
+    })
+    const preview = await getInvitationByToken("tok")
+    expect(preview.status).toBe("expired")
+    expect(preview.role).toBe("admin")
+  })
+
+  it("returns not_found on a lookup error", async () => {
+    mockSupabaseFrom("invitations", { data: null, error: { message: "boom" } })
+    const preview = await getInvitationByToken("tok")
+    expect(preview.status).toBe("not_found")
+  })
+})
+
+describe("acceptInvitation member-limit hardening", () => {
+  const validInvite = {
+    id: "inv-1",
+    workspace_id: WORKSPACE_ID,
+    email: "x@y.com",
+    role: "member" as const,
+    accepted_at: null,
+    expires_at: FUTURE,
+  }
+
+  it("returns LIMIT_EXCEEDED when the workspace is at the member cap", async () => {
+    mockSupabaseFrom("invitations", { data: validInvite, error: null })
+    mockSupabaseFrom("workspace_members", { data: null, error: null })
+    mockSupabaseFrom("subscriptions", { data: { plan_name: "pro", status: "active" }, error: null })
+    mockSupabaseFrom("usage", { data: { count: 10 }, error: null })
+
+    const result = await acceptInvitation({ token: "tok", userId: "u-9" })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe("LIMIT_EXCEEDED")
+    expect(getLastWrite("workspace_members", "insert")).toBeUndefined()
+    expect(mocks.incrementUsage).not.toHaveBeenCalled()
+    expect(getLastWrite("invitations", "update")).toBeUndefined()
+  })
+
+  it("allows accept when under the cap", async () => {
+    mockSupabaseFrom("invitations", { data: validInvite, error: null })
+    mockSupabaseFrom("workspace_members", { data: null, error: null })
+    mockSupabaseFrom("subscriptions", { data: { plan_name: "pro", status: "active" }, error: null })
+    mockSupabaseFrom("usage", { data: { count: 3 }, error: null })
+
+    const result = await acceptInvitation({ token: "tok", userId: "u-9" })
+
+    expect(result.ok).toBe(true)
+    expect(getLastWrite("workspace_members", "insert")).toBeDefined()
+    expect(mocks.incrementUsage).toHaveBeenCalledWith(WORKSPACE_ID, "members")
   })
 })

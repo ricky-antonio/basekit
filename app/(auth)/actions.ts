@@ -1,6 +1,6 @@
 "use server"
 
-import { headers } from "next/headers"
+import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { checkRateLimit } from "@/lib/ratelimit"
@@ -93,6 +93,20 @@ export async function signupAction(
 
   if (error) {
     return { ok: false, error: { error: "Could not create account. Please try again.", code: "INTERNAL_ERROR" } }
+  }
+
+  // Carry an invitation token across email verification: the /callback handler reads
+  // this cookie and joins the inviting workspace instead of bootstrapping a new one.
+  const invite = String(formData.get("invite") ?? "").trim()
+  if (invite) {
+    const cookieStore = await cookies()
+    cookieStore.set("bk_invite", invite, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+    })
   }
 
   redirect("/verify-email")

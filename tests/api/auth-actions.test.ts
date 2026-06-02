@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   checkRateLimit: vi.fn(),
   redirect: vi.fn(),
   headers: vi.fn(),
+  cookieSet: vi.fn(),
 }))
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -25,6 +26,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("next/headers", () => ({
   headers: mocks.headers,
+  cookies: async () => ({ set: mocks.cookieSet }),
 }))
 
 const fakeHeaders = {
@@ -54,6 +56,7 @@ beforeEach(() => {
   mocks.checkRateLimit.mockReset()
   mocks.redirect.mockReset()
   mocks.headers.mockReset().mockResolvedValue(fakeHeaders)
+  mocks.cookieSet.mockReset()
   vi.mocked(mockSupabase.auth.signInWithPassword).mockReset()
   vi.mocked(mockSupabase.auth.signUp).mockReset()
   vi.mocked(mockSupabase.auth.resetPasswordForEmail).mockReset()
@@ -164,6 +167,40 @@ describe("signupAction", () => {
       expect(result.error.fieldErrors?.["password"]).toBeTruthy()
     }
     expect(mockSupabase.auth.signUp).not.toHaveBeenCalled()
+  })
+
+  it("stashes the invite token in a cookie when signing up via an invitation", async () => {
+    mocks.checkRateLimit.mockResolvedValue({ success: true })
+    vi.mocked(mockSupabase.auth.signUp).mockResolvedValue({
+      data: { user: { id: "u1" }, session: null } as any,
+      error: null,
+    })
+    await expectRedirect(
+      () =>
+        signupAction(
+          null,
+          formData({ displayName: "Jane", email: "a@b.co", password: "longenough", invite: "tok-123" }),
+        ),
+      "/verify-email",
+    )
+    expect(mocks.cookieSet).toHaveBeenCalledWith("bk_invite", "tok-123", expect.objectContaining({ httpOnly: true }))
+  })
+
+  it("does not set an invite cookie for a normal signup", async () => {
+    mocks.checkRateLimit.mockResolvedValue({ success: true })
+    vi.mocked(mockSupabase.auth.signUp).mockResolvedValue({
+      data: { user: { id: "u1" }, session: null } as any,
+      error: null,
+    })
+    await expectRedirect(
+      () =>
+        signupAction(
+          null,
+          formData({ displayName: "Jane", email: "a@b.co", password: "longenough" }),
+        ),
+      "/verify-email",
+    )
+    expect(mocks.cookieSet).not.toHaveBeenCalled()
   })
 })
 

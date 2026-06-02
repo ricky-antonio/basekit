@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { decrementUsage } from "@/lib/usage"
 import { logActivity } from "@/lib/activity"
 import type { ApiResult, WorkspaceMemberRole } from "@/lib/types"
@@ -13,6 +13,20 @@ export interface TeamMember {
   userId: string
   role: WorkspaceMemberRole
   joinedAt: string
+}
+
+// A member row enriched with the profile + auth fields the team UI displays.
+// `email` lives in auth.users and `display_name`/`avatar_url` in another user's
+// profiles row — both unreadable under RLS by a teammate — so the enrichment is
+// service-role-only (see listTeamMembers).
+export interface EnrichedMember {
+  id: string
+  userId: string
+  role: WorkspaceMemberRole
+  joinedAt: string
+  displayName: string
+  email: string | null
+  avatarUrl: string | null
 }
 
 export interface MemberRole {
@@ -71,6 +85,72 @@ export async function listMembers(workspaceId: string): Promise<ApiResult<TeamMe
       role: row.role as WorkspaceMemberRole,
       joinedAt: row.joined_at,
     })),
+  }
+}
+
+// Members enriched with display name, avatar, and email for the team UI. RLS lets a
+// member read the roster (workspace_members) and their OWN profile, but not other
+// members' profiles or any auth.users email — so enrichment runs as the service role
+// and MUST be called only from a route handler that has already confirmed the caller
+// is a member of `workspaceId`.
+export async function listTeamMembers(
+  workspaceId: string,
+): Promise<ApiResult<EnrichedMember[]>> {
+  const supabase = createServiceClient()
+
+  const { data: rows, error } = await supabase
+    .from("workspace_members")
+    .select("id, user_id, role, joined_at")
+    .eq("workspace_id", workspaceId)
+    .order("joined_at", { ascending: true })
+
+  if (error) {
+    console.error("[team.listTeamMembers] roster failed", error)
+    Sentry.captureException(error)
+    return { ok: false, error: { error: "Could not load members. Please try again.", code: "INTERNAL_ERROR" } }
+  }
+
+  const roster = rows ?? []
+  const userIds = roster.map((row) => row.user_id)
+
+  if (userIds.length === 0) {
+    return { ok: true, data: [] }
+  }
+
+  const { data: profileRows } = await supabase
+    .from("profiles")
+    .select("id, display_name, avatar_url")
+    .in("id", userIds)
+
+  const profiles = new Map(
+    (profileRows ?? []).map((p) => [p.id, { displayName: p.display_name, avatarUrl: p.avatar_url }]),
+  )
+
+  // Bounded by member count (≤10 on Pro). Emails are only in auth.users — resolved
+  // one-by-one via the admin API, mirroring inviteMember's already-a-member check.
+  const accounts = await Promise.all(
+    userIds.map(async (id) => {
+      const { data } = await supabase.auth.admin.getUserById(id)
+      return [id, data?.user?.email ?? null] as const
+    }),
+  )
+  const emails = new Map(accounts)
+
+  return {
+    ok: true,
+    data: roster.map((row) => {
+      const profile = profiles.get(row.user_id)
+      const email = emails.get(row.user_id) ?? null
+      return {
+        id: row.id,
+        userId: row.user_id,
+        role: row.role as WorkspaceMemberRole,
+        joinedAt: row.joined_at,
+        displayName: profile?.displayName ?? email ?? "Member",
+        email,
+        avatarUrl: profile?.avatarUrl ?? null,
+      }
+    }),
   }
 }
 

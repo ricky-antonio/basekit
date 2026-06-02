@@ -18,6 +18,7 @@ export const limiters = {
   teamRemove: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, "1 m"), prefix: "rl:team:rm" }),
   teamRole: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, "1 m"), prefix: "rl:team:ro" }),
   teamRevoke: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, "1 m"), prefix: "rl:team:rv" }),
+  teamInviteLookup: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, "1 m"), prefix: "rl:team:il" }),
   adminWrite: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, "1 m"), prefix: "rl:adm:wr" }),
   webhookStripe: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(100, "10 s"), prefix: "rl:wh:st" }),
   projectWrite: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, "1 m"), prefix: "rl:proj:wr" }),

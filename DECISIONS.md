@@ -5,6 +5,55 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 
 ---
 
+## Enriched member data is served by a service-role route, never the team Server Component
+**Decision:** The team page's member rows (display name, avatar, email) come from a new `GET /api/team/members` route handler that calls `listTeamMembers` (service role). A client wrapper (`TeamMembers`) fetches it and shows a skeleton; the page itself never touches the service-role client.
+**Why:** RLS exposes only the caller's *own* profile (`profiles_select_own`) and no `auth.users` email to a teammate, so enriched member display needs the service role. `code.md`/`security.md` forbid the service-role client in a Server Component, so the enrichment lives in a route handler (allowed) and reaches the page via `fetch`. `getWorkspace` resolves the workspace via the caller's own membership, so reaching the enrichment already proves membership; the data returned is only the caller's own workspace.
+**Alternatives rejected:**
+- Service-role read directly in the team Server Component — violates the documented "service role only in routes/Server Actions" rule (would be an audit 🔴).
+- Add a `profiles_select_same_workspace` RLS policy + read via the RLS client — gets names/avatars but still can't expose `auth.users` emails, and adds a live-DB migration + RLS re-verification for partial benefit.
+**Date:** 2026-06-02
+
+---
+
+## Public invitation preview via an unauthenticated, rate-limited service-role route
+**Decision:** `GET /api/team/invitation?token=…` returns a display-only preview (`status`, workspace name, inviter name, invited email, role) via `getInvitationByToken` (service role). It requires no session and is rate-limited by IP (`teamInviteLookup`, 20/min). It always returns 200 with a status discriminant (`valid`/`expired`/`accepted`/`not_found`).
+**Why:** The `/team/accept` page must show "you've been invited to {workspace}" to a visitor who is not yet a member (and may have no account). No `invitations`-by-token RLS policy exists, and `workspaces`/cross-member `profiles` are unreadable to a non-member, so the lookup is service-role. The token is the secret — a holder is entitled to see who invited them and where.
+**Alternatives rejected:**
+- Server-render the preview in the accept page — same service-role-in-Server-Component rule problem.
+- 404 for unknown/expired tokens — the page renders all four states as content, so a single 200 + discriminant is simpler for the client.
+**Date:** 2026-06-02
+
+---
+
+## Team UI reuses the Phase 3.2 API routes via `fetch` (no duplicate Server Actions)
+**Decision:** `InviteForm`, `MemberTable`, and `PendingInviteRow` mutate by `fetch`-ing the existing `/api/team/{invite,remove,role,revoke}` routes built in 3.2, rather than adding parallel Server Actions. Optimistic UI is done with a local `useState` working copy that reverts on a non-ok response.
+**Why:** The 3.2 routes are already auth-gated, Zod-validated, rate-limited, and tested. Adding Server Actions would duplicate that boilerplate over the same lib functions for no behavior gain. `architecture.md` explicitly lists `fetch()`-from-client as a valid path, and client-owned (fetched) lists are naturally managed with `useState` optimism rather than `useOptimistic` (which keys off a Server-Component-provided prop).
+**Alternatives rejected:**
+- New `app/(app)/team/actions.ts` Server Actions + `useOptimistic` — duplicates the route layer; the routes are also needed for the 3.2 curl/manual-verification path.
+**Date:** 2026-06-02
+
+---
+
+## Invite-accept signup flow carries the token in an httpOnly `bk_invite` cookie
+**Decision:** When an unauthenticated invitee signs up via `/signup?invite=<token>&email=<email>`, `signupAction` writes an httpOnly `bk_invite` cookie (7-day, matching invite expiry). The `/callback` handler reads it after email verification, calls `acceptInvitation`, clears the cookie (single-use), and skips `bootstrapWorkspace` on success — joining the inviting workspace instead of creating a new one. On accept failure it falls through to `bootstrapWorkspace` so the new account still gets a workspace.
+**Why:** Email verification round-trips through a mail client, so the token must survive across requests; an httpOnly cookie is the standard carrier and isn't exposed to JS. Acceptance stays the existing bearer-token model (any verified account holding the token joins) — acceptance is **not** bound to the invited email in v1 (documented limitation; the token is a 7-day single-use secret).
+**Alternatives rejected:**
+- Pass the token only in the query through to a post-verify redirect — Supabase's verify links don't preserve arbitrary app query params reliably.
+- Bind acceptance to the invited email — rejected for v1 to keep the "sign up with any email" path simple; revisit if invite-link leakage becomes a concern.
+**Date:** 2026-06-02
+
+---
+
+## Member limit is re-gated at accept time (service role), closing the pending-invite overshoot
+**Decision:** `acceptInvitation` now re-checks the plan member limit before inserting a new membership, reading `subscriptions` + `usage` directly via the service role (it already runs as service role). At/over cap → `LIMIT_EXCEEDED` (no `upgradeUrl`, since the invitee can't upgrade someone else's workspace). The check is skipped on the idempotent already-a-member replay and fails OPEN on a read error.
+**Why:** The at-invite `canAddMember` gate counts only current members, so N pending invites each pass it and could overshoot the cap when all accept (3.2 audit 🟠#2). The not-yet-member can't read usage/subscription under RLS, but the service-role accept path can — so the second barrier belongs here.
+**Alternatives rejected:**
+- Count pending invitations toward the limit at invite time — still races concurrent invites and doesn't help an already-issued batch.
+- Leave it open (v1) — the spec Goal is "member count enforced against plan limits"; this is the clean close.
+**Date:** 2026-06-02
+
+---
+
 ## Team domain split into `lib/team.ts` (members) + `lib/invitations.ts`
 **Decision:** Member management (`listMembers`, `removeMember`, `changeMemberRole`) lives in `lib/team.ts`; invitation flows (`listPendingInvitations`, `inviteMember`, `acceptInvitation`, `revokeInvitation`) live in `lib/invitations.ts`. The shared `fetchMembers` / `isOwnerOrAdmin` / `ServerClient` are exported from `lib/team.ts` and imported by `lib/invitations.ts` (one-directional dependency, no barrel file).
 **Why:** A single combined module hit 506 lines — well past the 300-line soft limit (the same trigger that split `webhook-helpers.ts` out of `webhooks.ts` in 3.1). Splitting on the members-vs-invitations seam keeps each module cohesive (~188 / ~327 lines) without a re-export barrel (`code.md` discourages barrels > 5 entries).

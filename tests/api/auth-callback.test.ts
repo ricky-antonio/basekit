@@ -7,6 +7,9 @@ import type { User } from "@supabase/supabase-js"
 const mocks = vi.hoisted(() => ({
   getWorkspace: vi.fn(),
   bootstrapWorkspace: vi.fn(),
+  acceptInvitation: vi.fn(),
+  cookieGet: vi.fn(),
+  cookieDelete: vi.fn(),
 }))
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -16,6 +19,12 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/workspace", () => ({
   getWorkspace: mocks.getWorkspace,
   bootstrapWorkspace: mocks.bootstrapWorkspace,
+}))
+
+vi.mock("@/lib/invitations", () => ({ acceptInvitation: mocks.acceptInvitation }))
+
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: mocks.cookieGet, delete: mocks.cookieDelete }),
 }))
 
 const BASE_URL = "http://localhost:3000"
@@ -44,6 +53,9 @@ describe("GET /callback", () => {
     resetSupabaseMock()
     mocks.getWorkspace.mockReset()
     mocks.bootstrapWorkspace.mockReset()
+    mocks.acceptInvitation.mockReset()
+    mocks.cookieGet.mockReset().mockReturnValue(undefined)
+    mocks.cookieDelete.mockReset()
     vi.mocked(mockSupabase.auth.exchangeCodeForSession).mockReset()
     vi.mocked(mockSupabase.auth.verifyOtp).mockReset()
   })
@@ -192,6 +204,40 @@ describe("GET /callback", () => {
     const response = await GET(makeRequest({ token_hash: "expired", type: "signup" }))
 
     expect(response.headers.get("location")).toBe(`${BASE_URL}/login?error=auth_failed`)
+  })
+
+  it("accepts the invitation and skips bootstrap when the invite cookie is present", async () => {
+    vi.mocked(mockSupabase.auth.exchangeCodeForSession).mockResolvedValue({
+      data: { user: fakeUser as User, session: null },
+      error: null,
+    })
+    mocks.cookieGet.mockReturnValue({ value: "tok-123" })
+    mocks.acceptInvitation.mockResolvedValue({ ok: true, data: { workspaceId: "ws-2", role: "member" } })
+
+    const response = await GET(makeRequest({ code: "test-code" }))
+
+    expect(mocks.acceptInvitation).toHaveBeenCalledWith({ token: "tok-123", userId: "user-1" })
+    expect(mocks.cookieDelete).toHaveBeenCalledWith("bk_invite")
+    expect(mocks.getWorkspace).not.toHaveBeenCalled()
+    expect(mocks.bootstrapWorkspace).not.toHaveBeenCalled()
+    expect(response.headers.get("location")).toBe(`${BASE_URL}/dashboard`)
+  })
+
+  it("falls back to bootstrap when the invited workspace accept fails", async () => {
+    vi.mocked(mockSupabase.auth.exchangeCodeForSession).mockResolvedValue({
+      data: { user: fakeUser as User, session: null },
+      error: null,
+    })
+    mocks.cookieGet.mockReturnValue({ value: "expired" })
+    mocks.acceptInvitation.mockResolvedValue({ ok: false, error: { error: "expired", code: "VALIDATION_ERROR" } })
+    mocks.getWorkspace.mockResolvedValue({ ok: false, error: { error: "Not found", code: "NOT_FOUND" } })
+    mocks.bootstrapWorkspace.mockResolvedValue({ ok: true, data: "ws-1" })
+
+    const response = await GET(makeRequest({ code: "test-code" }))
+
+    expect(mocks.cookieDelete).toHaveBeenCalledWith("bk_invite")
+    expect(mocks.bootstrapWorkspace).toHaveBeenCalledWith("user-1", "user@example.com")
+    expect(response.headers.get("location")).toBe(`${BASE_URL}/dashboard`)
   })
 
   it("redirects to /login?error=workspace_failed if bootstrap fails", async () => {
