@@ -72,6 +72,20 @@ describe("AppShell", () => {
     expect(screen.getByRole("menuitem", { name: /Settings/i })).toBeInTheDocument()
   })
 
+  it("shows an Admin link in the user menu only for admins", async () => {
+    render(<AppShell {...defaultProps} isAdmin />)
+    await userEvent.click(screen.getByRole("button", { name: "User menu" }))
+    const adminItem = screen.getByRole("menuitem", { name: /Admin/i })
+    expect(adminItem).toBeInTheDocument()
+    expect(adminItem).toHaveAttribute("href", "/admin")
+  })
+
+  it("hides the Admin link for non-admins", async () => {
+    render(<AppShell {...defaultProps} />)
+    await userEvent.click(screen.getByRole("button", { name: "User menu" }))
+    expect(screen.queryByRole("menuitem", { name: /Admin/i })).not.toBeInTheDocument()
+  })
+
   it("renders page content", () => {
     render(<AppShell {...defaultProps} />)
     expect(screen.getByText("page content")).toBeInTheDocument()

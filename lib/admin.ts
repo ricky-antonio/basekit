@@ -23,6 +23,7 @@ export interface AdminUserRow {
   workspaceSlug: string
   planName: PlanName
   status: SubscriptionStatus
+  stripeCustomerId: string | null
   createdAt: string
 }
 
@@ -149,6 +150,7 @@ export async function listUsers(input: ListUsersInput = {}): Promise<ApiResult<A
       workspaceSlug: workspace.slug,
       planName: normalizePlan(sub.plan_name),
       status: sub.status as SubscriptionStatus,
+      stripeCustomerId: sub.stripe_customer_id,
       createdAt: sub.created_at,
     })
   }

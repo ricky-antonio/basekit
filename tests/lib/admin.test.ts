@@ -72,6 +72,7 @@ describe("listUsers", () => {
     expect(alice?.email).toBe("team@acme.test")
     expect(alice?.displayName).toBe("Alice")
     expect(alice?.role).toBe("user")
+    expect(alice?.stripeCustomerId).toBe("cus_a")
   })
 
   it("filters by plan", async () => {

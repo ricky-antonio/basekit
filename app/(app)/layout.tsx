@@ -25,12 +25,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const profile = profileResult.ok ? profileResult.data : null
   const displayName = deriveDisplayName(user, profile)
   const avatarUrl = profile?.avatar_url ?? null
+  const isAdmin = profile?.role === "admin"
 
   return (
     <AppShell
       workspaceName={workspaceName}
       displayName={displayName}
       avatarUrl={avatarUrl}
+      isAdmin={isAdmin}
     >
       {children}
     </AppShell>

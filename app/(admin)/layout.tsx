@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation"
 import { requireAdmin } from "@/lib/auth"
+import AdminNav from "@/components/admin/AdminNav"
 
 // The admin authorization boundary. requireAdmin() runs before any /admin page
 // renders; a non-admin (or signed-out user who slipped past middleware) is bounced to
-// the dashboard with a toast trigger. The full admin shell/nav is built in 4.2.
+// the dashboard with a toast trigger. AdminNav is the section's shell/nav.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const authResult = await requireAdmin()
   if (!authResult.ok) redirect("/dashboard?error=admin_required")
@@ -11,6 +12,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-app)" }}>
       <main id="main" className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        <AdminNav />
         {children}
       </main>
     </div>

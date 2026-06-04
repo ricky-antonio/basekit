@@ -27,6 +27,15 @@ beforeAll(() => {
   }
 })
 
+// recharts' ResponsiveContainer relies on ResizeObserver, which jsdom doesn't provide.
+beforeAll(() => {
+  global.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+})
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()

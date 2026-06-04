@@ -5,6 +5,46 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 
 ---
 
+## Admin pages are client components that fetch the 4.1 API routes (the service-role lib never enters a Server Component)
+**Decision:** Every `/admin/*` page is a thin Server Component (`PageHeader` + a client "screen" component). The screen components (`AdminOverview`, `UserTable`, `UserDetail`, `SubscriptionsTable`, `ActivityLog`) fetch the existing `/api/admin/*` routes on mount, show a skeleton, then render the presentational pieces — exactly the `TeamMembers` pattern. The admin lib (`lib/admin*.ts`) is never imported by a page.
+**Why:** `lib/admin*.ts` runs on the service-role client, which `security.md`/`code.md` forbid in a Server Component (it bypasses RLS). The 4.1 routes already gate that lib behind `requireAdmin()`, so consuming them from the client is the sanctioned path and reuses the tested route layer. It also makes the URL-driven search/filter/pagination a natural client concern and keeps a real skeleton on every data view (no empty flash).
+**Alternatives rejected:**
+- Call `listUsers()`/`getMetrics()` directly from the `(admin)` Server Components — pulls the service-role client into an RSC (the exact thing the convention bans; flagged in PR review) for no benefit, since the layout already `requireAdmin()`s.
+- Server-render the page by `fetch`ing the internal route — needs an absolute URL + manual cookie forwarding; awkward versus the established client-fetch idiom.
+**Date:** 2026-06-04
+
+---
+
+## `RevenueChart` is dynamically imported (`ssr: false`) to keep recharts out of the admin first-load bundle
+**Decision:** `AdminOverview` loads `RevenueChart` via `next/dynamic(..., { ssr: false, loading: <Skeleton/> })`. recharts is only pulled in when the chart mounts client-side. Tests stub `ResizeObserver` in `tests/setup.ts` (recharts' `ResponsiveContainer` needs it under jsdom) and `AdminOverview.test` mocks the `RevenueChart` module so it doesn't depend on chart/dynamic-import timing.
+**Why:** recharts is ~128 KB and below the fold — `code.md` names it as a dynamic-import target. Confirmed in the build: `/admin` first-load is 235 KB (≈ shared baseline), with recharts + `RevenueChart` in separate async chunks rather than the main bundle.
+**Alternatives rejected:**
+- Static import — recharts lands in every admin route's first-load even where no chart renders.
+- A hand-rolled SVG sparkline — avoids the dep but loses axes/tooltips/responsiveness for a core admin view.
+**Date:** 2026-06-04
+
+---
+
+## The admin section is reached only via a role-gated Topbar menu item
+**Decision:** The single in-app entry point to `/admin` is an "Admin" item in the Topbar user menu, rendered only when `profile.role === 'admin'` (`isAdmin` flows `(app)/layout → AppShell → Topbar`). No sidebar or bottom-nav entry. Within the section, `AdminNav` handles tabs + a "Back to app" link.
+**Why:** The mobile bottom nav is capped at five items (`design.md`), and the sidebar is the tenant-scoped product nav — a cross-tenant admin tool doesn't belong there. The user menu is the natural home for a privileged, rarely-used action and is visible on every breakpoint. `getProfile` already returns `role`, so the flag costs no extra query. The role check is UI sugar only; the real gate stays the layout's `requireAdmin()` + middleware.
+**Alternatives rejected:**
+- A sidebar/bottom-nav item — exceeds the five-item mobile cap and mixes tenant nav with cross-tenant tooling.
+- No in-app link (type `/admin`) — works, but a one-click path for admins is cheap and discoverable.
+**Date:** 2026-06-04
+
+---
+
+## Subscriptions + activity views reuse the users/activity routes; added `GET /api/admin/activity` and `stripeCustomerId` on `AdminUserRow`
+**Decision:** `/admin/subscriptions` is the `/api/admin/users` list with a status filter (one subscription per workspace in v1, so the user set is the subscription set), rendering the Stripe customer deep link — which required surfacing `stripeCustomerId` on `AdminUserRow` (`listUsers` already selected the column, it was just dropped). `/admin/activity` consumes a new `GET /api/admin/activity` route wrapping the 4.1 `listActivity` lib; the overview's "recent activity" feed reuses the same route (page 1).
+**Why:** A separate `listSubscriptions` would duplicate nearly all of `listUsers` for the v1 1:1 identity. `listActivity` shipped in 4.1 with no route; the activity page + overview feed both need it, so one read route serves both. Both additions are additive (no behavior change to 4.1 reads).
+**Alternatives rejected:**
+- A dedicated `listSubscriptions` lib + route — duplication for no extra capability at v1 scale.
+- Fold activity into the metrics payload — conflates two concerns and blocks independent action-filtering/pagination on the activity page.
+**Date:** 2026-06-04
+
+---
+
 ## Admin reads run as the service role and are workspace-owner-centric (v1)
 **Decision:** `lib/admin.ts` (`listUsers`, `getUserDetail`, `overrideUserPlan`, `listActivity`) runs entirely on the **service-role** client and must only be called from a `requireAdmin()`-gated route handler. The admin "user" is the **workspace owner**: `listUsers` drives from the `subscriptions` set (plan/status filter at the DB) and enriches each owner's identity (profile + `auth.users` email via `auth.admin.getUserById`, one call per owner, each isolated in try/catch like `listTeamMembers`). Because search spans email + display name (email isn't a queryable column), **search and pagination run in memory** over the enriched set.
 **Why:** Admin views cross every tenant, which RLS exists to forbid — so the service role is required, and the gate is the route's `requireAdmin()`. In v1 every user owns exactly one workspace (created at signup with one free `subscriptions` row via `bootstrap_workspace`), so the subscription set is the user set 1:1 — driving from `subscriptions` makes plan/status native DB filters. Invited members still appear via their own owned workspace.

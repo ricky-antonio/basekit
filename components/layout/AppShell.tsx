@@ -6,6 +6,7 @@ interface AppShellProps {
   workspaceName: string
   displayName: string
   avatarUrl?: string | null
+  isAdmin?: boolean
   children: React.ReactNode
 }
 
@@ -13,6 +14,7 @@ export default function AppShell({
   workspaceName,
   displayName,
   avatarUrl,
+  isAdmin = false,
   children,
 }: AppShellProps) {
   return (
@@ -42,6 +44,7 @@ export default function AppShell({
           workspaceName={workspaceName}
           displayName={displayName}
           avatarUrl={avatarUrl}
+          isAdmin={isAdmin}
         />
 
         {/* Scrollable content */}

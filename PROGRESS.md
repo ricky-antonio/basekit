@@ -3,28 +3,31 @@
 ---
 
 ## Current phase
-Phase 4 — Admin + Impersonation — **IN PROGRESS**. Checkpoint 4.1 (admin lib + metrics + API
-routes) code-complete, all 4 gates green, **committed**; coverage thresholds raised to 82/82/77/82
-at phase start. **Session audit run post-commit (per user request)**: no 🔴, one 🟠 fixed (split the
-activity reader into `lib/admin-activity.ts` to clear the 300-line limit), six 🟡 deferred — all 4
-gates re-run green (see 4.1 closeout §9). Phase 3 is COMPLETE (built + audited + live-verified
-2026-06-04). Next: Checkpoint 4.2 — admin pages + components.
+Phase 4 — Admin + Impersonation — **IN PROGRESS**. Checkpoint 4.2 (admin pages + components)
+code-complete, all 4 gates green, **committed**; coverage thresholds 82/82/77/82. **Session audit
+runs post-commit (per user request)** — findings + any fixes will be appended to the 4.2 closeout §9.
+Checkpoint 4.1 is complete (built + audited). Phase 3 is COMPLETE (built + audited + live-verified
+2026-06-04). Next: Checkpoint 4.3 — impersonation end-to-end.
 
 ## Current checkpoint
-Checkpoint 4.1 — Admin lib + metrics + API routes — **CODE-COMPLETE: all 4 gates green,
-committed; audit done post-commit (split `lib/admin-activity.ts`).** Built `lib/admin.ts`
-(`listUsers`/`getUserDetail`/`overrideUserPlan` — service-role, workspace-owner-centric) +
-`lib/admin-activity.ts` (`listActivity`),
-`lib/admin-metrics.ts` (`getMetrics` — MRR/ARR/churn/trend from one `subscriptions` read),
-`lib/validation/admin.ts`, the `adminRead` limiter (60/min), 3 admin API routes (`/api/admin/users`,
-`/api/admin/users/[id]` GET+PATCH, `/api/admin/metrics`), and the `(admin)` auth boundary
-(`requireAdmin` → `/dashboard?error=admin_required`) + placeholder `/admin` page + `AdminRequiredToast`
-on the dashboard. Middleware already gated `/admin` for the unauthenticated (no change). **477 tests
-pass; coverage 86.89/78.82/88.3/89.46 (> 82/82/77/82).** Live manual verification (admin promote,
-browser redirect, curl, override, metrics, `activity_log` RLS) deferred to a live pass.
-(See "Checkpoint 4.1 closeout — 2026-06-04" below.)
+Checkpoint 4.2 — Admin pages + components — **CODE-COMPLETE: all 4 gates green, committed;
+audit runs post-commit.** Built the full navigable admin UI consuming the 4.1 API routes via
+client "screen" components (skeleton-on-fetch, mirroring `TeamMembers`): `/admin` overview (4 metric
+cards + dynamically-imported recharts `RevenueChart` + plan breakdown + recent activity),
+`/admin/users` (URL-driven search/plan/status filters + pagination), `/admin/users/[id]` (detail +
+`PlanOverrideDialog` → PATCH), `/admin/subscriptions` (status filter + Stripe deep links),
+`/admin/activity` (action filter + pagination), `loading.tsx`, and `AdminNav` in the `(admin)` layout.
+13 components in `components/admin/` + pure `lib/admin-format.ts`. **Additions beyond the task list:**
+new `GET /api/admin/activity` route (the activity page/feed needs it; `listActivity` had none) and
+`stripeCustomerId` surfaced on `AdminUserRow` (subscriptions Stripe link). Plus a role-gated **Admin**
+item in the Topbar user menu (the in-app entry point; `isAdmin` flows layout→AppShell→Topbar).
+Installed `recharts`. **535 tests pass; coverage 87.82/79.64/89.04/90.27 (> 82/82/77/82); build clean,
+chart in a separate async chunk.** The **Impersonate** button is intentionally deferred to 4.3 (its
+wiring task). Live/browser manual verification deferred to a live pass.
+(See "Checkpoint 4.2 closeout — 2026-06-04" below.)
 
 ## Completed
+- [2026-06-04] Phase 4.2 — Admin pages + components: full navigable admin UI (overview w/ metric cards + dynamic recharts chart + plan breakdown + recent activity; users table w/ URL search/filter/pagination; user detail + plan-override dialog; subscriptions w/ Stripe deep links; activity log) consuming the 4.1 routes via client screen components; `AdminNav` shell; role-gated Admin item in the Topbar user menu. Added `GET /api/admin/activity` + `stripeCustomerId` on `AdminUserRow`; installed `recharts` (dynamically imported). 535 tests; coverage 87.82/79.64/89.04/90.27. Code-complete + committed; audit post-commit; live verification deferred. (See "Checkpoint 4.2 closeout — 2026-06-04" below.)
 - [2026-06-04] Phase 4.1 — Admin lib + metrics + API routes: `lib/admin.ts` + `lib/admin-metrics.ts` + `lib/validation/admin.ts`, `adminRead` limiter, 3 admin API routes, `(admin)` auth boundary (`requireAdmin` redirect + toast) + placeholder `/admin` page; coverage thresholds → 82/82/77/82. 477 tests; coverage 86.89/78.82/88.3/89.46. Code-complete + committed; audit post-commit; live manual verification deferred. (See "Checkpoint 4.1 closeout — 2026-06-04" below.)
 - [2026-06-04] Phase 3 manual verification — full team lifecycle verified live (paired session): invite + dedup/already-member guards, unregistered-invitee signup→`bk_invite` cookie→callback→join *existing* workspace, existing-account accept, member role/remove + owner-protection, removed-member access loss, revoke + expired-link, plan limits (Free + Pro-cap UpgradePrompt) + the **accept-time member-limit re-gate**, RLS 14/14 + member read-only gating, activity-log all 4 actions. **Found + fixed 5 bugs** (middleware-gated `/team/accept`, removed-member redirect loop → `/no-workspace`, member-name `user_metadata` fallback, remove/role `router.refresh()` sync, invitations partial-unique re-invite). Deferred: live invite email (verified Resend domain), real-phone pass, OAuth-invite cookie gap. (See "Phase 3 manual verification — 2026-06-04" below.)
 - [2026-06-02] Phase 3.3 — Team UI: `/team` page (member summary + InviteForm + MemberTable + pending invitations), public `/team/accept`, invite→signup→join loop (`bk_invite` cookie + callback `acceptInvitation`), 7 team components, 2 read routes (`/api/team/members`, `/api/team/invitation`), service-role member enrichment, and the member-limit re-gate at accept (closes 3.2 🟠#2). 430 tests; coverage 86.12/78.82/87.38/88.78. Code-complete + committed; audit run post-commit; live/manual verification deferred. (See "Checkpoint 3.3 closeout — 2026-06-02" below.)
@@ -40,22 +43,26 @@ browser redirect, curl, override, metrics, `activity_log` RLS) deferred to a liv
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- **Checkpoint 4.1 committed + audit follow-up committed.** Session audit: no 🔴, one 🟠 fixed
-  (extracted `lib/admin-activity.ts` to clear the 300-line limit), six 🟡 deferred (see 4.1 closeout
-  §9). All 4 gates green. Ready for 4.2 once context is cleared.
-- **Phase 4.1 live manual verification deferred to a live session** (needs `npm run dev` + live DB):
-  promote an account to admin via SQL (`update profiles set role='admin' where id='…'`); non-admin
-  browser hit on `/admin` → `/dashboard` + "Admin access required" toast; admin curl on
-  `/api/admin/users` (+ `?search`/`?plan`/`?status`); PATCH plan override → `subscriptions` updated +
-  `activity_log` `admin.plan_override`; `/api/admin/metrics` MRR vs seeded data; `activity_log` readable
-  to admins only (RLS via a non-admin token).
+- **Checkpoint 4.2 committed; session audit runs post-commit (per user request).** Audit findings +
+  any fixes will be appended to the 4.2 closeout §9, with all 4 gates re-run after.
+- **Phase 4.2 live/browser manual verification deferred to a live session** (needs `npm run dev` +
+  live DB + an admin-promoted account): `/admin` overview renders real metrics; user-table
+  search/plan/status filters update the URL + refetch; pagination; user detail shows workspace +
+  subscription + last 20 activities; plan override → DB + the user's `/settings/billing` reflects it
+  immediately; `activity_log` gains the `admin.plan_override` row; subscriptions Stripe deep links;
+  activity-log action filter; mobile card-stacking; the role-gated Topbar **Admin** link.
+- **Phase 4.1 live manual verification still deferred** (folds into the 4.2/4.3 live pass): admin
+  promote via SQL; non-admin `/admin` → `/dashboard` + toast; admin curl on `/api/admin/users`
+  (+ filters); PATCH override → `subscriptions` + `activity_log`; `/api/admin/metrics` vs seeded data;
+  `activity_log` admin-only RLS via a non-admin token.
 - **Carry-over deferrals from Phase 3** (non-blocking, batch into Phase 5 / when a domain is wired):
   1. **Live invite email** — gated on a **verified Resend domain** (standing 3.1 issue).
   2. **Real-phone pass** — the `code.md` "test on a real phone once per phase" item.
   3. **OAuth-invite cookie gap** (audit 🟡) — `/signup?invite=` + "Sign up with Google" doesn't carry
      the `bk_invite` cookie; email-signup + existing-account paths work. Documented v1 defer.
-- **Next:** Checkpoint **4.2 — Admin pages + components** (overview, user table, user detail, plan
-  override dialog, subscriptions + activity pages; dynamic-import the revenue chart).
+- **Next:** Checkpoint **4.3 — Impersonation end-to-end** (`lib/impersonation.ts`, impersonate/end
+  routes, `ImpersonateBanner` in both layouts, `getUser()` honors the impersonation cookie, audited
+  start/end; wire the **Impersonate** button on the user-detail page).
 
 ## Phase 2 — entry notes (read before Checkpoint 2.1)
 Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-ready, no blockers**: `subscriptions` has all Stripe columns + `updated_at` trigger + `unique(workspace_id)`/`unique(stripe_customer_id)`; `usage` has `unique(workspace_id, resource)` + `count >= 0` with `increment_usage` (upsert) / `decrement_usage` (clamps at 0); `projects` RLS = member insert/select/update + owner/admin-only delete; `stripe_events` = `id`/`type`/`processed_at` (no RLS); `service_role` grants fixed; `usage_select_members` exists so enforcement reads don't fail open. Watch-items:
@@ -307,6 +314,78 @@ Verified via `scripts/rls-verify.mjs` (new) — a reproducible form of setup.md 
 
 _(Appended chronologically as checkpoints complete. Newest at the top.
 Each closeout follows the 8-item template defined in CLAUDE.md → Checkpoint protocol.)_
+
+## Checkpoint 4.2 closeout — 2026-06-04
+
+> **Status:** code-complete, all 4 gates green, **committed**. Per user request the session audit
+> runs **after** this commit; its findings + any fixes are appended as §9 (mirrors 4.1). Live/browser
+> manual verification is deferred to a live session.
+
+### 1. Planned vs delivered
+
+**Pages**
+- ✅ `app/(admin)/admin/page.tsx` — overview (replaced the 4.1 placeholder)
+- ✅ `app/(admin)/admin/users/page.tsx` — paginated table + search + plan/status filters
+- ✅ `app/(admin)/admin/users/[id]/page.tsx` — detail + override action
+- ✅ `app/(admin)/admin/subscriptions/page.tsx` — list + status filter + Stripe deep links
+- ✅ `app/(admin)/admin/activity/page.tsx` — paginated activity log + action filter
+- ✅ `app/(admin)/admin/loading.tsx` — skeleton dashboard
+- ⚠️ Admin shell/nav — delivered as `components/admin/AdminNav.tsx` (tabs + "Back to app"), rendered by the `(admin)` layout
+
+**Components** (`components/admin/`)
+- ✅ `AdminMetrics` (4 color-accented cards) · ✅ `RevenueChart` (recharts, **dynamic import** `{ ssr:false }` + Skeleton fallback) · ✅ `PlanBreakdown` (stacked bar + counts/percentages) · ✅ `RecentActivity` (reused by overview + activity page) · ✅ `UserDetailHeader` · ✅ `PlanOverrideDialog` (plan select + reason + confirm)
+- ⚠️ `UserTable` — delivered as a single client screen (URL search/filter/pagination + fetch + rows), not a presentational/wrapper split; "tables collapse to cards" via the `flex-col → md:flex-row` row pattern (same as `MemberTable`), not `@tanstack/react-virtual` (only needed >100 rows — not hit at v1 scale)
+- ✅ Extra screen components: `AdminOverview`, `UserDetail`, `SubscriptionsTable`, `ActivityLog`, `AdminNav`, `StatusBadge`; pure helper `lib/admin-format.ts`
+- ⚠️ **Additions beyond the task list:** `GET /api/admin/activity` route (activity page/feed needs it; `listActivity` had none) + `stripeCustomerId` on `AdminUserRow`; a role-gated **Admin** item in the Topbar user menu (the in-app entry point — `isAdmin` flows `(app)/layout → AppShell → Topbar`)
+- 🔜 **Impersonate button** — deferred to 4.3 (its own wiring task); no dead button shipped
+
+### 2. In plain English (delivered)
+
+The admin dashboard is a real, navigable UI. An admin (reached via a new **Admin** link that appears in the user menu only when `role='admin'`) lands on `/admin`: four metric cards (MRR, total users, active subscribers, 30-day churn), a 12-month revenue line chart, a plan-distribution bar, and a recent-activity feed. The user table is searchable by name/email and filterable by plan and status — every control writes to the URL and refetches — with pagination. Clicking a user opens their detail page (identity, subscription with a Stripe deep link, workspace, last 20 activities) where a confirmation dialog applies a manual plan override (writes `subscriptions`, logs `admin.plan_override`, then the user's billing page reflects it). A subscriptions page lists every workspace subscription filtered by status with Stripe links, and an activity page pages through the audit log filtered by action. The chart is code-split so recharts never enters the main bundle. Every admin view fetches the 4.1 service-role routes from the client behind a skeleton — the admin lib never enters a Server Component. **Nothing has been exercised against the live stack yet.**
+
+### 3. Done-when verification
+
+- ✅ `/admin` loads with real metrics from DB (no mocks) — `AdminOverview` fetches `/api/admin/metrics` + `/api/admin/activity`; build confirms the route, live render deferred
+- ✅ User table search/filter updates URL params and refetches — `UserTable` pushes `/admin/users?…`, effect keyed on the query string refetches (`UserTable.test.tsx`)
+- ✅ Override plan dialog works end to end → user's `/settings/billing` reflects new plan — `PlanOverrideDialog` + `UserDetail` PATCH → `overrideUserPlan` (tested both sides); live billing-page check deferred
+- ✅ Activity log page paginated and filterable — `ActivityLog` (`ActivityLog.test.tsx`)
+- ✅ Charts dynamically imported (verified via bundle analysis) — `/admin` first-load 235 KB (≈ baseline); recharts + `RevenueChart` in separate async chunks (`190…js`, `1562…js`)
+- ✅ Mobile: tables collapse to card layout — `flex-col → md:flex-row` rows (jsdom asserts the base; real-device deferred)
+- ✅ All admin component tests pass — 13 new test files
+- ✅ `npm run test:coverage` ≥ 82% — **Stmts 87.82 · Branches 79.64 · Funcs 89.04 · Lines 90.27** (thresholds 82/82/77/82)
+- ✅ `npm run type-check` zero errors · `npm run build` zero errors (clean rebuild; all 5 admin pages + `/api/admin/activity` generated)
+- ⚠️ Full Phase 4.2 manual verification suite — **deferred** to a live session
+
+### 4. Test files added/changed
+
+- New components: `AdminMetrics` (3) · `PlanBreakdown` (3) · `RecentActivity` (5) · `RevenueChart` (4) · `UserDetailHeader` (4) · `PlanOverrideDialog` (3) · `AdminNav` (3) · `AdminOverview` (2) · `UserTable` (6) · `UserDetail` (4) · `SubscriptionsTable` (4) · `ActivityLog` (4)
+- New lib/api: `tests/lib/admin-format.test.ts` (4) · `tests/api/admin-activity.test.ts` (6)
+- Extended: `tests/lib/admin.test.ts` (+1 `stripeCustomerId`) · `tests/components/AppShell.test.tsx` (+2 role-gated Admin link)
+- Net: 477 → **535 tests** (79 files)
+
+### 5. New DECISIONS.md entries
+
+- Admin pages are client components that fetch the 4.1 API routes (the service-role lib never enters a Server Component)
+- `RevenueChart` is dynamically imported (`ssr:false`) to keep recharts out of the admin first-load bundle
+- The admin section is reached only via a role-gated Topbar menu item
+- Subscriptions + activity views reuse the users/activity routes; added `GET /api/admin/activity` + `stripeCustomerId` on `AdminUserRow`
+
+### 6. Deferred items
+
+- **Full Phase 4.2 live/manual verification** → live session (needs `npm run dev` + live DB + an admin-promoted account). See In progress for the checklist.
+- **Impersonate button** → Checkpoint 4.3 (the impersonation checkpoint wires it onto the detail page).
+- **List virtualization** (`@tanstack/react-virtual`) → only when a list exceeds 100 rows; not hit at v1 admin scale.
+
+### 7. Known issues
+
+- **In-memory search + pagination in `listUsers`** (inherited from 4.1) — the user table/subscriptions views ride on it; fine at v1 admin scale, a searchable column/view is the v2 fix.
+- **Activity pagination has no total** — `listActivity` returns no count, so the activity/subscription "Next" is a heuristic (a full page implies more). Acceptable; a count query is the v2 refinement.
+- **`Topbar.tsx` coverage 33%** — the sign-out + theme-toggle handlers remain untested (pre-existing); the new `isAdmin` branch IS covered (the two AppShell tests). Global coverage well above threshold.
+- **Admin link role check is client-trusted UI sugar** — the real gate is the layout `requireAdmin()` + middleware; hiding the menu item is not a security control.
+
+### 8. What surprised me
+
+recharts' `ResponsiveContainer` throws under jsdom because it depends on `ResizeObserver`, which jsdom doesn't provide — so the test setup needed a `ResizeObserver` stub alongside the existing `IntersectionObserver`/`matchMedia` ones. Separately, building twice in a row produced a spurious `PageNotFoundError` ("collect page data") across untouched pages — a stale `.next` cache, cleared by `rm -rf .next` before the clean build; compile + type-check had both passed, confirming it wasn't a code error.
 
 ## Checkpoint 4.1 closeout — 2026-06-04
 

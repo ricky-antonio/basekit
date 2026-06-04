@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useTheme } from "next-themes"
-import { IconSun, IconMoon, IconSettings, IconLogout, IconUser, IconLoader2 } from "@tabler/icons-react"
+import { IconSun, IconMoon, IconSettings, IconLogout, IconUser, IconLoader2, IconShieldLock } from "@tabler/icons-react"
 import { startTopProgress } from "@/components/layout/TopProgressBar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -20,9 +20,10 @@ interface TopbarProps {
   workspaceName: string
   displayName: string
   avatarUrl?: string | null
+  isAdmin?: boolean
 }
 
-export default function Topbar({ workspaceName, displayName, avatarUrl }: TopbarProps) {
+export default function Topbar({ workspaceName, displayName, avatarUrl, isAdmin = false }: TopbarProps) {
   const { resolvedTheme, setTheme } = useTheme()
   const [signingOut, setSigningOut] = useState(false)
 
@@ -94,6 +95,18 @@ export default function Topbar({ workspaceName, displayName, avatarUrl }: Topbar
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" className="w-48">
+          {isAdmin && (
+            <>
+              <DropdownMenuItem asChild>
+                <Link href="/admin" className="flex items-center gap-2 cursor-pointer">
+                  <IconShieldLock size={15} aria-hidden="true" />
+                  Admin
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+
           <DropdownMenuItem asChild>
             <Link href="/settings/profile" className="flex items-center gap-2 cursor-pointer">
               <IconSettings size={15} aria-hidden="true" />
