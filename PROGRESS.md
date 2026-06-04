@@ -5,14 +5,16 @@
 ## Current phase
 Phase 4 — Admin + Impersonation — **IN PROGRESS**. Checkpoint 4.1 (admin lib + metrics + API
 routes) code-complete, all 4 gates green, **committed**; coverage thresholds raised to 82/82/77/82
-at phase start. **Session audit runs AFTER the commit (per user request)** — findings will be
-appended to the 4.1 closeout below. Phase 3 is COMPLETE (built + audited + live-verified 2026-06-04).
-Next: Checkpoint 4.2 — admin pages + components.
+at phase start. **Session audit run post-commit (per user request)**: no 🔴, one 🟠 fixed (split the
+activity reader into `lib/admin-activity.ts` to clear the 300-line limit), six 🟡 deferred — all 4
+gates re-run green (see 4.1 closeout §9). Phase 3 is COMPLETE (built + audited + live-verified
+2026-06-04). Next: Checkpoint 4.2 — admin pages + components.
 
 ## Current checkpoint
 Checkpoint 4.1 — Admin lib + metrics + API routes — **CODE-COMPLETE: all 4 gates green,
-committed; audit pending (post-commit, per user request).** Built `lib/admin.ts`
-(`listUsers`/`getUserDetail`/`overrideUserPlan`/`listActivity` — service-role, workspace-owner-centric),
+committed; audit done post-commit (split `lib/admin-activity.ts`).** Built `lib/admin.ts`
+(`listUsers`/`getUserDetail`/`overrideUserPlan` — service-role, workspace-owner-centric) +
+`lib/admin-activity.ts` (`listActivity`),
 `lib/admin-metrics.ts` (`getMetrics` — MRR/ARR/churn/trend from one `subscriptions` read),
 `lib/validation/admin.ts`, the `adminRead` limiter (60/min), 3 admin API routes (`/api/admin/users`,
 `/api/admin/users/[id]` GET+PATCH, `/api/admin/metrics`), and the `(admin)` auth boundary
@@ -38,8 +40,9 @@ browser redirect, curl, override, metrics, `activity_log` RLS) deferred to a liv
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- **Checkpoint 4.1 committed; session audit pending** (post-commit, per user request) — run
-  `.claude/session-audit.md` over the 4.1 diff and resolve/defer every 🔴/🟠 before starting 4.2.
+- **Checkpoint 4.1 committed + audit follow-up committed.** Session audit: no 🔴, one 🟠 fixed
+  (extracted `lib/admin-activity.ts` to clear the 300-line limit), six 🟡 deferred (see 4.1 closeout
+  §9). All 4 gates green. Ready for 4.2 once context is cleared.
 - **Phase 4.1 live manual verification deferred to a live session** (needs `npm run dev` + live DB):
   promote an account to admin via SQL (`update profiles set role='admin' where id='…'`); non-admin
   browser hit on `/admin` → `/dashboard` + "Admin access required" toast; admin curl on
@@ -378,6 +381,26 @@ The whole server side of the admin section exists and is gated. A `profiles.role
 ### 8. What surprised me
 
 PostgREST's typed query builder splits filters (`.eq` on `PostgrestFilterBuilder`) from transforms (`.order`/`.range` on `PostgrestTransformBuilder`), and `.order()` returns the transform builder — so `from().select().order().eq()` is a **compile error** (`.eq` doesn't exist post-`.order`). Conditional `.eq()` filters must be applied **before** `.order()`/`.range()`. The chainable test mock doesn't care (every method returns the same object), so this only shows up in `tsc`, not the tests.
+
+### 9. Session audit (run post-commit per user request)
+
+Ran `.claude/session-audit.md` over the 4.1 commit (`cdd27d6`) after re-reading CLAUDE.md + the three
+rules files + the Phase 4 spec. **No 🔴.** One 🟠 + six 🟡; the user chose **fix the 🟠, defer the 🟡s**.
+- 🟠 **`lib/admin.ts` was 397 lines** (over the 300 soft limit — the trigger that split `team.ts`/
+  `invitations.ts` in Phase 3) → **fixed**: extracted the activity-log reader (`listActivity` +
+  `AdminActivityRow`/`AdminActivityList`/`RawActivityRow`/`mapActivityRow`) into `lib/admin-activity.ts`
+  (89 lines, a sibling of `admin-metrics.ts`); `getUserDetail` imports the activity row type + mapper.
+  `admin.ts` is now **319** (cohesive users domain). Tests moved to `tests/lib/admin-activity.test.ts` (3).
+- 🟡 **Deferred** (with rationale): metrics route has no `revalidate=60` (cookies make it dynamic anyway);
+  `churnRate30d` denominator approximates "active at period start" (slightly understates churn); comped/
+  overridden paid plans count toward MRR at the monthly rate; the `[id]` path param isn't UUID-validated
+  (a bad id parameterizes safely → NOT_FOUND); `overrideUserPlan` only targets a workspace owner (v1
+  one-workspace model). All documented; none blocking.
+
+All four gates re-run green after the fix: type-check 0 · test **477** (65 files) · coverage
+**86.9 / 78.82 / 88.3 / 89.47** (> 82/82/77/82; `admin-activity.ts` 100/86.66/100/100, `admin.ts`
+88.88/68.91/100/89.15, `admin-metrics.ts` 89.7/78.57/100/94.73) · build clean. The honestly-unverified
+item remains the whole live/manual suite (see In progress).
 
 ## Checkpoint 3.3 closeout — 2026-06-02
 
