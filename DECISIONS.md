@@ -5,6 +5,16 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 
 ---
 
+## invitations uniqueness is partial — one PENDING invite per (workspace, email)
+**Decision:** `invitations` uniqueness is a **partial** unique index `(workspace_id, email) WHERE accepted_at IS NULL`, not a full `unique(workspace_id, email)`. So at most one *pending* invite exists per email per workspace, while *accepted* invitations don't block anything.
+**Why:** The applied migration had drifted to a **full** unique constraint, which locked a `(workspace, email)` pair forever after the first accept — a member who was invited+accepted then removed could never be re-invited (insert failed `23505` → "already pending"). Found during the 2026-06-04 live pass. The partial index matches `schema.md`'s original intent: dedupe pending invites without permanently consuming the address. Applied live (dropped the full constraint, added the partial index) + fixed `combined.sql`.
+**Alternatives rejected:**
+- Full `unique(workspace_id, email)` (status quo) — blocks legitimate re-invitation.
+- App-level pre-check instead of a DB constraint — a TOCTOU race; the partial index is race-safe and is what `inviteMember`'s `isUniqueViolation` mapping already expects.
+**Date:** 2026-06-04
+
+---
+
 ## Workspace-less authenticated users land on `/no-workspace` (not auto-bootstrap)
 **Decision:** An authenticated user with no workspace membership (e.g. removed from the only workspace they joined via invitation) is redirected to a dedicated `/no-workspace` page — a `requireAuth()`-gated landing with a Sign out button — rather than to `/login`. The `(app)` layout enforces it (it runs before any child page renders); the four workspace-gated pages also point their workspace-miss redirect there for consistency.
 **Why:** Phase 3's member-removal made the "authenticated but workspace-less" state reachable for the first time. The pages redirected such users to `/login`, which the middleware bounces back to `/dashboard` (they're authed) → infinite redirect loop ("too many redirects"). `/no-workspace` is exempt from both the middleware's protected prefix and its auth-only bounce, so it's a stable terminal state.
