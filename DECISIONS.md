@@ -5,6 +5,49 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 
 ---
 
+## Admin reads run as the service role and are workspace-owner-centric (v1)
+**Decision:** `lib/admin.ts` (`listUsers`, `getUserDetail`, `overrideUserPlan`, `listActivity`) runs entirely on the **service-role** client and must only be called from a `requireAdmin()`-gated route handler. The admin "user" is the **workspace owner**: `listUsers` drives from the `subscriptions` set (plan/status filter at the DB) and enriches each owner's identity (profile + `auth.users` email via `auth.admin.getUserById`, one call per owner, each isolated in try/catch like `listTeamMembers`). Because search spans email + display name (email isn't a queryable column), **search and pagination run in memory** over the enriched set.
+**Why:** Admin views cross every tenant, which RLS exists to forbid — so the service role is required, and the gate is the route's `requireAdmin()`. In v1 every user owns exactly one workspace (created at signup with one free `subscriptions` row via `bootstrap_workspace`), so the subscription set is the user set 1:1 — driving from `subscriptions` makes plan/status native DB filters. Invited members still appear via their own owned workspace.
+**Alternatives rejected:**
+- Drive from `supabase.auth.admin.listUsers()` — native auth pagination, but plan/status become in-memory filters (the high-value narrowing filters should be native) and it mixes auth-page size with filtered results.
+- Add a `profiles_select_admin`-style RLS path and use the user client — more policy surface + still can't read `auth.users` emails; the service-role route is lower operational risk (mirrors the 3.3 team-members decision).
+- DB-level `range()` pagination — impossible while search is in-memory; acceptable at v1 admin scale. A searchable identity column / Postgres view is the v2 fix.
+**Date:** 2026-06-04
+
+---
+
+## Admin metrics derive from the `subscriptions` table alone
+**Decision:** `getMetrics()` issues **one** read (`subscriptions`) and computes MRR, ARR, totals, active subscribers, plan breakdown, 30-day churn, trial conversion, and the 12-month MRR trend in memory. MRR normalises annual to per-month ($276/yr→$23, $948/yr→$79) by mapping `stripe_price_id` to an amount (falling back to the plan's monthly rate for comped subs with no price). Revenue-granting statuses are `active`/`trialing`/`past_due`; `churnRate30d = canceledLast30d / (activeNow + canceledLast30d)`.
+**Why:** Same v1 1:1 user↔workspace↔subscription identity as above means `subscriptions.length` is the user count and the array carries plan/status/price/created/updated/trial — everything the metrics need. One read keeps it deterministic and trivially unit-testable with fake timers (no cross-table fixtures).
+**Alternatives rejected:**
+- Join `profiles`/`workspaces`/`activity_log` for totals/churn — extra reads for values already derivable from the subscription set.
+- Compute MRR from live Stripe — slow, rate-limited, and our `subscriptions` mirror is already the webhook-maintained source of truth.
+- SQL aggregate (Postgres `sum`/`count`) — harder to unit-test against the chainable mock; the dataset is small at v1 scale.
+**Date:** 2026-06-04
+
+---
+
+## `overrideUserPlan` bypasses Stripe and forces an access-granting status
+**Decision:** A manual admin plan override writes `subscriptions.{plan_name, status:'active', cancel_at_period_end:false}` directly (service role) and logs `admin.plan_override` with `{from, to, reason, targetUserId}`. It does **not** touch Stripe. The lib self-guards (`admin.role !== 'admin'` → `FORBIDDEN`) in addition to the route's `requireAdmin()`.
+**Why:** Override is for **comped / manual** plans (support, demos), so it must work without a Stripe customer. Forcing an access-granting status makes `getActivePlan` honour it immediately on the user's next render. A mandatory `reason` is what makes the audit row useful. The double admin check is defence in depth — the function writes via the service role (RLS can't catch a misuse).
+**Alternatives rejected:**
+- Drive the override through Stripe (create/update a subscription) — out of scope for comped plans and couples an internal action to Stripe availability.
+- Trust the route's `requireAdmin()` alone — fine in practice, but a service-role writer self-guarding is cheap insurance.
+- **Caveat (documented, not a blocker):** if a *live* Stripe subscription exists, the next webhook reconciles `plan_name`/`status` and can overwrite the override. Override is not meant for editing a self-serve subscriber's billing.
+**Date:** 2026-06-04
+
+---
+
+## Admin section gate: layout `requireAdmin()` + `?error=admin_required` toast; `adminRead` vs `adminWrite` limiters
+**Decision:** `app/(admin)/layout.tsx` calls `requireAdmin()` and redirects a non-admin to `/dashboard?error=admin_required`; the dashboard (a server component reading its `searchParams` prop) conditionally renders a mount-fire `AdminRequiredToast` that toasts once and `router.replace`s the param away — the exact `UpgradedToast` pattern (no `useSearchParams`, so no Suspense bailout). Middleware already lists `/admin` in its protected prefixes (bounces signed-out users to `/login`), so the role check is the layer the layout adds. Admin **reads** use a new `adminRead` limiter (60/min/admin); **writes** stay on `adminWrite` (30/min/admin).
+**Why:** Defence in depth — middleware stops the unauthenticated, the layout stops authenticated non-admins before any page renders, and the API routes independently `requireAdmin()`. The query-param-driven toast reuses the established billing pattern and sidesteps the `useSearchParams` static-bailout entirely. Reads shouldn't share the stricter write budget, hence a separate read limiter.
+**Alternatives rejected:**
+- `useSearchParams()` in the toast component — needs a Suspense boundary or it bails out static rendering at build; the server-prop pattern is simpler and already in the codebase.
+- One `adminWrite` limiter for both reads and writes — a dashboard refresh storm would eat the write budget.
+**Date:** 2026-06-04
+
+---
+
 ## invitations uniqueness is partial — one PENDING invite per (workspace, email)
 **Decision:** `invitations` uniqueness is a **partial** unique index `(workspace_id, email) WHERE accepted_at IS NULL`, not a full `unique(workspace_id, email)`. So at most one *pending* invite exists per email per workspace, while *accepted* invitations don't block anything.
 **Why:** The applied migration had drifted to a **full** unique constraint, which locked a `(workspace, email)` pair forever after the first accept — a member who was invited+accepted then removed could never be re-invited (insert failed `23505` → "already pending"). Found during the 2026-06-04 live pass. The partial index matches `schema.md`'s original intent: dedupe pending invites without permanently consuming the address. Applied live (dropped the full constraint, added the partial index) + fixed `combined.sql`.

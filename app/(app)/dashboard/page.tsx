@@ -9,12 +9,19 @@ import { getProfile, deriveDisplayName } from "@/lib/profile"
 import { PLANS } from "@/lib/plans"
 import PageHeader from "@/components/shared/PageHeader"
 import EmptyState from "@/components/shared/EmptyState"
+import AdminRequiredToast from "./AdminRequiredToast"
 import { Badge } from "@/components/ui/badge"
 import { IconFolder } from "@tabler/icons-react"
 
 export const metadata = { title: "Dashboard — basekit" }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>
+}) {
+  const params = await searchParams
+
   const authResult = await requireAuth()
   if (!authResult.ok) redirect("/login")
 
@@ -44,6 +51,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="max-w-5xl mx-auto w-full">
+      {params.error === "admin_required" && <AdminRequiredToast />}
       <PageHeader
         title={`Hello, ${displayName}`}
         subtitle={`Welcome back to ${workspace.name}`}

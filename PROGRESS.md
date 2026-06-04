@@ -3,27 +3,27 @@
 ---
 
 ## Current phase
-Phase 3 — Team + Invitations + Email — **COMPLETE** (3.1 + 3.2 + 3.3 built, audited, all 4
-gates green; **full live manual verification done 2026-06-04** — found + fixed **5 bugs**, see
-"Phase 3 manual verification — 2026-06-04" below). Remaining deferrals are non-blocking: the live
-invite *email* needs a verified Resend domain (standing 3.1 issue), and the OAuth-invite-cookie gap
-+ a real-phone pass are documented v1 defers. Ready to begin Phase 4.
+Phase 4 — Admin + Impersonation — **IN PROGRESS**. Checkpoint 4.1 (admin lib + metrics + API
+routes) code-complete, all 4 gates green, **committed**; coverage thresholds raised to 82/82/77/82
+at phase start. **Session audit runs AFTER the commit (per user request)** — findings will be
+appended to the 4.1 closeout below. Phase 3 is COMPLETE (built + audited + live-verified 2026-06-04).
+Next: Checkpoint 4.2 — admin pages + components.
 
 ## Current checkpoint
-Checkpoint 3.3 — Team UI — **CODE-COMPLETE: all 4 gates green, committed. Session audit
-run AFTER commit (per user request) — findings appended to the 3.3 closeout below.** Built the
-read layer (`listTeamMembers` service-role enrichment + `GET /api/team/members`; `getInvitationByToken`
-+ public `GET /api/team/invitation`), the member-limit re-gate at accept (closes the 3.2 overshoot
-🟠#2), 7 team components (`RoleBadge`, `MemberTable` w/ optimistic remove+role, `TeamMembers` fetch
-wrapper, `InviteForm`, `PendingInviteRow`, `AcceptInvitationCard`, `AcceptInvitation`), 3 pages
-(`/team` rewrite, `team/loading.tsx`, public `/team/accept`), and the invite→signup→callback flow
-(`bk_invite` httpOnly cookie set by `signupAction`, consumed by `/callback` → `acceptInvitation`).
-Team UI mutations reuse the tested 3.2 API routes via `fetch`. **431 tests pass; coverage
-86.17/78.9/87.38/88.82 (> 78/73/78/78).** Audit done (split `lib/invitation-accept.ts`, 44px tap
-target — committed). **Live manual verification completed 2026-06-04** (see the verification block
-below) — found + fixed 5 bugs; Phase 3 is done bar the deferred Resend-domain email + real-phone pass.
+Checkpoint 4.1 — Admin lib + metrics + API routes — **CODE-COMPLETE: all 4 gates green,
+committed; audit pending (post-commit, per user request).** Built `lib/admin.ts`
+(`listUsers`/`getUserDetail`/`overrideUserPlan`/`listActivity` — service-role, workspace-owner-centric),
+`lib/admin-metrics.ts` (`getMetrics` — MRR/ARR/churn/trend from one `subscriptions` read),
+`lib/validation/admin.ts`, the `adminRead` limiter (60/min), 3 admin API routes (`/api/admin/users`,
+`/api/admin/users/[id]` GET+PATCH, `/api/admin/metrics`), and the `(admin)` auth boundary
+(`requireAdmin` → `/dashboard?error=admin_required`) + placeholder `/admin` page + `AdminRequiredToast`
+on the dashboard. Middleware already gated `/admin` for the unauthenticated (no change). **477 tests
+pass; coverage 86.89/78.82/88.3/89.46 (> 82/82/77/82).** Live manual verification (admin promote,
+browser redirect, curl, override, metrics, `activity_log` RLS) deferred to a live pass.
+(See "Checkpoint 4.1 closeout — 2026-06-04" below.)
 
 ## Completed
+- [2026-06-04] Phase 4.1 — Admin lib + metrics + API routes: `lib/admin.ts` + `lib/admin-metrics.ts` + `lib/validation/admin.ts`, `adminRead` limiter, 3 admin API routes, `(admin)` auth boundary (`requireAdmin` redirect + toast) + placeholder `/admin` page; coverage thresholds → 82/82/77/82. 477 tests; coverage 86.89/78.82/88.3/89.46. Code-complete + committed; audit post-commit; live manual verification deferred. (See "Checkpoint 4.1 closeout — 2026-06-04" below.)
 - [2026-06-04] Phase 3 manual verification — full team lifecycle verified live (paired session): invite + dedup/already-member guards, unregistered-invitee signup→`bk_invite` cookie→callback→join *existing* workspace, existing-account accept, member role/remove + owner-protection, removed-member access loss, revoke + expired-link, plan limits (Free + Pro-cap UpgradePrompt) + the **accept-time member-limit re-gate**, RLS 14/14 + member read-only gating, activity-log all 4 actions. **Found + fixed 5 bugs** (middleware-gated `/team/accept`, removed-member redirect loop → `/no-workspace`, member-name `user_metadata` fallback, remove/role `router.refresh()` sync, invitations partial-unique re-invite). Deferred: live invite email (verified Resend domain), real-phone pass, OAuth-invite cookie gap. (See "Phase 3 manual verification — 2026-06-04" below.)
 - [2026-06-02] Phase 3.3 — Team UI: `/team` page (member summary + InviteForm + MemberTable + pending invitations), public `/team/accept`, invite→signup→join loop (`bk_invite` cookie + callback `acceptInvitation`), 7 team components, 2 read routes (`/api/team/members`, `/api/team/invitation`), service-role member enrichment, and the member-limit re-gate at accept (closes 3.2 🟠#2). 430 tests; coverage 86.12/78.82/87.38/88.78. Code-complete + committed; audit run post-commit; live/manual verification deferred. (See "Checkpoint 3.3 closeout — 2026-06-02" below.)
 - [2026-05-31] Phase 3.2 — Team domain (`lib/team.ts` + `lib/invitations.ts`) + 5 API routes + activity-log writes; shared `zodFieldErrors`/`statusForCode` helpers; supabase mock extended with filter capture. Code + audit complete (split the 506-line module on the audit's flag); manual curl/RLS/activity-log verification deferred to a live session. (See "Checkpoint 3.2 closeout — 2026-05-31" below.)
@@ -38,18 +38,21 @@ below) — found + fixed 5 bugs; Phase 3 is done bar the deferred Resend-domain 
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- **Phase 3 is COMPLETE** (built + audited + live-verified 2026-06-04). Nothing blocking remains.
-  Carry-over deferrals (non-blocking, batch into Phase 5 / when a domain is wired):
-  1. **Live invite email** — still gated on a **verified Resend domain** (standing 3.1 issue). The
-     whole invite/accept *flow* is verified via the token shortcut; only literal email delivery to a
-     non-owner recipient is unconfirmed. Batch with the deferred 3.1 email pass.
-  2. **Real-phone pass** — mobile card layout + tap targets eyeballed via a narrow viewport; a real
-     device check is the remaining `code.md` "test on a real phone once per phase" item.
+- **Checkpoint 4.1 committed; session audit pending** (post-commit, per user request) — run
+  `.claude/session-audit.md` over the 4.1 diff and resolve/defer every 🔴/🟠 before starting 4.2.
+- **Phase 4.1 live manual verification deferred to a live session** (needs `npm run dev` + live DB):
+  promote an account to admin via SQL (`update profiles set role='admin' where id='…'`); non-admin
+  browser hit on `/admin` → `/dashboard` + "Admin access required" toast; admin curl on
+  `/api/admin/users` (+ `?search`/`?plan`/`?status`); PATCH plan override → `subscriptions` updated +
+  `activity_log` `admin.plan_override`; `/api/admin/metrics` MRR vs seeded data; `activity_log` readable
+  to admins only (RLS via a non-admin token).
+- **Carry-over deferrals from Phase 3** (non-blocking, batch into Phase 5 / when a domain is wired):
+  1. **Live invite email** — gated on a **verified Resend domain** (standing 3.1 issue).
+  2. **Real-phone pass** — the `code.md` "test on a real phone once per phase" item.
   3. **OAuth-invite cookie gap** (audit 🟡) — `/signup?invite=` + "Sign up with Google" doesn't carry
-     the `bk_invite` cookie, so a Google invitee would bootstrap a new workspace instead of joining.
-     Email-signup + existing-account paths work. Documented v1 defer.
-- **Next:** begin **Phase 4 — Admin + Impersonation** (raise coverage thresholds to 82/82/77/82 at
-  phase start per `.claude/rules/testing.md`).
+     the `bk_invite` cookie; email-signup + existing-account paths work. Documented v1 defer.
+- **Next:** Checkpoint **4.2 — Admin pages + components** (overview, user table, user detail, plan
+  override dialog, subscriptions + activity pages; dynamic-import the revenue chart).
 
 ## Phase 2 — entry notes (read before Checkpoint 2.1)
 Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-ready, no blockers**: `subscriptions` has all Stripe columns + `updated_at` trigger + `unique(workspace_id)`/`unique(stripe_customer_id)`; `usage` has `unique(workspace_id, resource)` + `count >= 0` with `increment_usage` (upsert) / `decrement_usage` (clamps at 0); `projects` RLS = member insert/select/update + owner/admin-only delete; `stripe_events` = `id`/`type`/`processed_at` (no RLS); `service_role` grants fixed; `usage_select_members` exists so enforcement reads don't fail open. Watch-items:
@@ -301,6 +304,80 @@ Verified via `scripts/rls-verify.mjs` (new) — a reproducible form of setup.md 
 
 _(Appended chronologically as checkpoints complete. Newest at the top.
 Each closeout follows the 8-item template defined in CLAUDE.md → Checkpoint protocol.)_
+
+## Checkpoint 4.1 closeout — 2026-06-04
+
+> **Status:** code-complete, all 4 gates green, **committed**. Per user request the session
+> audit runs **after** this commit; its findings + any fixes will be appended to this closeout
+> (mirrors the 3.3 flow). Live manual verification is deferred to a live session.
+
+### 1. Planned vs delivered
+
+**Admin lib**
+- ✅ `lib/admin.ts` — `listUsers({ search, plan, status, page })`, `getUserDetail(userId)`, `overrideUserPlan({ admin, userId, plan, reason })`, `listActivity({ action, workspaceId, page })`. Service-role; the admin "user" is the workspace owner (v1 1:1 user↔workspace↔subscription). ⚠️ Deviation: `overrideUserPlan` takes the already-verified `AuthUser` (from `requireAdmin`) rather than re-reading the caller's role from the DB — self-guards on `admin.role` with no extra query.
+- ✅ `lib/admin-metrics.ts` — `getMetrics()` returns `mrr`, `arr`, `totalUsers`, `activeSubscribers`, `planCounts`, `churnRate30d`, `trialConversionRate`, `mrrTrend12m` (12 oldest-first). ⚠️ Deviation: computed from a **single `subscriptions` read** (not cross-table joins) — the v1 identity makes it sufficient and keeps it deterministic to test.
+
+**Admin auth boundary**
+- ✅ `app/(admin)/layout.tsx` — `requireAdmin()`; non-admin → `redirect("/dashboard?error=admin_required")`.
+- ✅ Middleware enforcement — **already present** (`middleware`'s protected-prefix list includes `/admin`, bouncing the unauthenticated to `/login`); the layout adds the role check. No middleware edit needed.
+- ✅ `app/(app)/dashboard/AdminRequiredToast.tsx` — mount-fire toast + `router.replace` to strip the param (mirrors `UpgradedToast`); wired into the dashboard via its `searchParams` prop.
+
+**API routes**
+- ✅ `app/api/admin/users/route.ts` — GET, `?search`/`?plan`/`?status`/`?page`, `requireAdmin` + `adminRead` limiter + Zod.
+- ✅ `app/api/admin/users/[id]/route.ts` — GET detail + PATCH plan override (`adminWrite` limiter), Next-15 async `params`.
+- ✅ `app/api/admin/metrics/route.ts` — GET, `requireAdmin` + `adminRead`.
+- ✅ `lib/validation/admin.ts` (list-query / plan-override / activity-query schemas) + `adminRead` limiter (60/min) added to `lib/ratelimit.ts`.
+
+**Phase start**
+- ✅ Coverage thresholds raised to 82/82/77/82 in `vitest.config.ts`.
+
+### 2. In plain English (delivered)
+
+The whole server side of the admin section exists and is gated. A `profiles.role='admin'` user can hit three endpoints: a paginated, searchable, plan/status-filterable user list; a single user's full detail (identity + their workspace + subscription + last 20 activity rows); and a metrics payload (MRR/ARR normalised per-month, totals, plan breakdown, 30-day churn, trial conversion, a 12-month MRR trend). They can PATCH a manual plan override, which writes the subscription directly (bypassing Stripe, for comped plans) and records an audited `admin.plan_override` row with a mandatory reason. Everything admin-facing runs as the service role behind `requireAdmin()`, and the admin "user" is the workspace owner (valid because v1 gives every user exactly one workspace with one subscription). A non-admin who reaches any `/admin/*` URL is redirected to the dashboard, which shows an "Admin access required" toast. The visible `/admin` page is still a placeholder — the real dashboard UI is 4.2. **Nothing has been exercised against the live stack yet** — admin promotion, the browser redirect, curl, a live override, metric values vs seeded data, and the `activity_log` admin-only RLS check are all deferred to a live pass.
+
+### 3. Done-when verification
+
+- ✅ Non-admin visiting any `/admin/*` → redirected to `/dashboard` with toast — layout `requireAdmin` redirect + `AdminRequiredToast` (build confirms the route; live browser check deferred)
+- ✅ Admin visiting `/admin/*` → loads (placeholder OK) — `app/(admin)/admin/page.tsx` placeholder; `/admin` route in build output
+- ✅ `GET /api/admin/users` paginated + `?search`/`?plan`/`?status` — route + `adminUserListSchema` + `tests/api/admin-users.test.ts` (8) + `tests/lib/admin.test.ts`
+- ✅ `GET /api/admin/users/:id` → user + subscription + workspace + recent activity — `getUserDetail` + `tests/api/admin-users-id.test.ts`
+- ✅ `PATCH /api/admin/users/:id { plan, reason }` → override + logs activity — `overrideUserPlan` (asserts the `subscriptions` update payload + `admin.plan_override` log)
+- ✅ `GET /api/admin/metrics` → correct MRR/ARR/churn/breakdown — `tests/lib/admin-metrics.test.ts` (9, fake timers): pro_monthly 29 + pro_annual 23 = 52, canceled excluded, trialing included, churn 0.25, trend 12 oldest-first
+- ✅ All admin lib + admin API tests pass — **477 total** (+45)
+- ✅ `npm run test:coverage` ≥ 82% — **Stmts 86.89 · Branches 78.82 · Funcs 88.3 · Lines 89.46** (thresholds 82/82/77/82); `admin.ts` 90.47 / `admin-metrics.ts` 89.7
+- ✅ `npm run type-check` zero errors · `npm run build` zero errors (`/admin` + 3 admin API routes generated)
+- ⚠️ Manual verification suite (admin promote, browser redirect, curl, live override, metrics vs seed, `activity_log` RLS) — **deferred** to a live session
+
+### 4. Test files added/changed
+
+- `tests/lib/admin.test.ts` (new, 17 — listUsers ×6, getUserDetail ×4, overrideUserPlan ×4, listActivity ×3)
+- `tests/lib/admin-metrics.test.ts` (new, 9 — MRR matrix, plan breakdown, churn, trial conversion, 12-month trend, read-error)
+- `tests/api/admin-users.test.ts` (new, 8) · `tests/api/admin-users-id.test.ts` (new, 8) · `tests/api/admin-metrics.test.ts` (new, 4)
+- Net: 432 → **477 tests**
+
+### 5. New DECISIONS.md entries
+
+- Admin reads run as the service role and are workspace-owner-centric (v1)
+- Admin metrics derive from the `subscriptions` table alone
+- `overrideUserPlan` bypasses Stripe and forces an access-granting status
+- Admin section gate: layout `requireAdmin()` + `?error=admin_required` toast; `adminRead` vs `adminWrite` limiters
+
+### 6. Deferred items
+
+- **Full Phase 4.1 live/manual verification** → live session (needs `npm run dev` + live DB + an admin-promoted account). See In progress for the exact checklist.
+- **`listActivity` has no UI yet** — the lib + tests ship now; the activity-log page that consumes it is built in 4.2.
+- **Admin shell/nav** — the `(admin)` layout is a minimal container in 4.1; the real nav lands in 4.2.
+
+### 7. Known issues
+
+- **In-memory search + pagination in `listUsers`** — email isn't a queryable column, so the enriched set is filtered/paginated in memory (acceptable at v1 admin scale; a searchable column/view is the v2 fix). See DECISIONS → "Admin reads run as the service role…".
+- **Per-owner `getUserById`** in `listUsers`/`getUserDetail` (N admin calls) — each isolated in try/catch (a thrown error degrades to no-email for that user), mirroring `listTeamMembers`. Fine at v1 scale.
+- **Plan override vs live Stripe** — overriding a workspace that has a real Stripe subscription can be reconciled (overwritten) by the next webhook; override is meant for comped/manual plans. Documented in DECISIONS.
+- **`admin.ts` branch coverage 71.91%** — the uncovered branches are defensive null-fallbacks on enrichment maps; global branches 78.82% (> 77).
+
+### 8. What surprised me
+
+PostgREST's typed query builder splits filters (`.eq` on `PostgrestFilterBuilder`) from transforms (`.order`/`.range` on `PostgrestTransformBuilder`), and `.order()` returns the transform builder — so `from().select().order().eq()` is a **compile error** (`.eq` doesn't exist post-`.order`). Conditional `.eq()` filters must be applied **before** `.order()`/`.range()`. The chainable test mock doesn't care (every method returns the same object), so this only shows up in `tsc`, not the tests.
 
 ## Checkpoint 3.3 closeout — 2026-06-02
 
