@@ -152,8 +152,11 @@ read from the DB) — only literal email delivery is unverified.
 5. **Removed member couldn't be re-invited** — `invitations` had a **full** `unique(workspace_id, email)` (vs the spec's partial), so an accepted invite locked the pair forever (insert → 23505 → "already pending"). Replaced with a **partial** unique index (`where accepted_at is null`); applied live via SQL Editor + `combined.sql`. `85733f4`. See DECISIONS → "invitations uniqueness is partial".
 
 ### Gates after fixes (all green)
-- type-check ✅ 0 · test ✅ **431 passed** (59 files) · coverage ✅ **86.17 / 78.9 / 87.38 / 88.82** (> 78/73/78/78) · build ✅ (`/no-workspace` route added)
+- type-check ✅ 0 · test ✅ **432 passed** (59 files) · coverage ✅ **86.21 / 79.01 / 87.38 / 88.86** (> 78/73/78/78) · build ✅ (`/no-workspace` route added)
 - New tooling: `scripts/team-inspect.mjs`, `scripts/set-plan.mjs` (committed). New page: `app/no-workspace/page.tsx`.
+
+### Post-verification audit (073e5e9)
+Ran `session-audit.md` over the cumulative diff of the 5 manual-pass fixes (`a2c5d81..HEAD`): **no 🔴/🟠**, five 🟡. Fixed the three actionable ones: (1) `/no-workspace` self-corrects → `/dashboard` if the user actually has a workspace; (2) its Sign out shows a "Signing out…" pending state (`useFormStatus`, matching the Topbar); (3) `listTeamMembers` try/catches each `getUserById` so a thrown admin error degrades to no-email-for-that-member instead of a 500 (+ test). Left as-is: the page-level workspace-miss redirects are now dead code behind the layout (intentional/defensive); `combined.sql` has a redundant `invitations_email_idx` (harmless, not worth a migration).
 
 ### Still deferred after this pass
 - Live invite **email** delivery → needs a verified Resend domain (standing 3.1 issue). Real-phone mobile pass. OAuth-invite cookie gap (v1 defer). All non-blocking; tracked under In progress.
