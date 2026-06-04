@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation"
 import { requireAuth } from "@/lib/auth"
+import { getWorkspace } from "@/lib/workspace"
 import { signOutAction } from "@/app/(auth)/actions"
-import { Button } from "@/components/ui/button"
+import SignOutButton from "./SignOutButton"
 import { IconUsersGroup } from "@tabler/icons-react"
 
 export const metadata = { title: "No workspace — basekit" }
@@ -13,6 +14,11 @@ export const metadata = { title: "No workspace — basekit" }
 export default async function NoWorkspacePage() {
   const authResult = await requireAuth()
   if (!authResult.ok) redirect("/login")
+
+  // Self-correct: a user who actually has a workspace (e.g. navigated here by hand)
+  // belongs in the app, not on this terminal page.
+  const workspaceResult = await getWorkspace(authResult.data)
+  if (workspaceResult.ok) redirect("/dashboard")
 
   return (
     <main
@@ -37,9 +43,7 @@ export default async function NoWorkspacePage() {
           then sign back in.
         </p>
         <form action={signOutAction} className="mt-6">
-          <Button type="submit" className="min-h-11 w-full">
-            Sign out
-          </Button>
+          <SignOutButton />
         </form>
       </div>
     </main>

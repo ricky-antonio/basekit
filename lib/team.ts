@@ -133,9 +133,17 @@ export async function listTeamMembers(
   // null profiles.display_name but a real user_metadata.display_name.
   const accounts = await Promise.all(
     userIds.map(async (id) => {
-      const { data } = await supabase.auth.admin.getUserById(id)
-      const metadata = data?.user?.user_metadata as { display_name?: string } | undefined
-      return [id, { email: data?.user?.email ?? null, metaName: metadata?.display_name ?? null }] as const
+      try {
+        const { data } = await supabase.auth.admin.getUserById(id)
+        const metadata = data?.user?.user_metadata as { display_name?: string } | undefined
+        return [id, { email: data?.user?.email ?? null, metaName: metadata?.display_name ?? null }] as const
+      } catch (error) {
+        // A thrown admin/network error degrades to no email/name for that one member
+        // (profile name or "Member" still shows) rather than 500-ing the whole roster.
+        console.error("[team.listTeamMembers] getUserById failed", error)
+        Sentry.captureException(error)
+        return [id, { email: null, metaName: null }] as const
+      }
     }),
   )
   const accountById = new Map(accounts)

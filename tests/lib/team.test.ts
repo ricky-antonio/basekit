@@ -604,6 +604,23 @@ describe("listTeamMembers", () => {
     }
   })
 
+  it("degrades gracefully (no 500) when getUserById throws", async () => {
+    mockSupabaseFrom("workspace_members", {
+      data: [{ id: "m5", user_id: "u-5", role: "member", joined_at: "2026-01-05T00:00:00Z" }],
+      error: null,
+    })
+    mockSupabaseFrom("profiles", { data: [{ id: "u-5", display_name: "Prof Name", avatar_url: null }], error: null })
+    vi.mocked(mockSupabase.auth.admin.getUserById).mockRejectedValueOnce(new Error("network"))
+
+    const result = await listTeamMembers(WORKSPACE_ID)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data[0]?.email).toBeNull()
+      expect(result.data[0]?.displayName).toBe("Prof Name")
+    }
+  })
+
   it("returns an empty list (no enrichment) for a memberless workspace", async () => {
     mockSupabaseFrom("workspace_members", { data: [], error: null })
 
