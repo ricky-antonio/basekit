@@ -4,14 +4,15 @@
 
 ## Current phase
 Phase 4 — Admin + Impersonation — **IN PROGRESS**. Checkpoint 4.2 (admin pages + components)
-code-complete, all 4 gates green, **committed**; coverage thresholds 82/82/77/82. **Session audit
-runs post-commit (per user request)** — findings + any fixes will be appended to the 4.2 closeout §9.
-Checkpoint 4.1 is complete (built + audited). Phase 3 is COMPLETE (built + audited + live-verified
-2026-06-04). Next: Checkpoint 4.3 — impersonation end-to-end.
+code-complete, all 4 gates green, **committed**; coverage thresholds 82/82/77/82. **Session audit run
+post-commit (per user request)**: no 🔴/🟠, one 🟡 fixed (dropped redundant `as` casts in the user/
+subscription tables), four 🟡 deferred — all 4 gates re-run green (see 4.2 closeout §9). Checkpoint 4.1
+is complete (built + audited). Phase 3 is COMPLETE (built + audited + live-verified 2026-06-04).
+Next: Checkpoint 4.3 — impersonation end-to-end.
 
 ## Current checkpoint
 Checkpoint 4.2 — Admin pages + components — **CODE-COMPLETE: all 4 gates green, committed;
-audit runs post-commit.** Built the full navigable admin UI consuming the 4.1 API routes via
+audit done post-commit (dropped redundant casts; 4 🟡 deferred).** Built the full navigable admin UI consuming the 4.1 API routes via
 client "screen" components (skeleton-on-fetch, mirroring `TeamMembers`): `/admin` overview (4 metric
 cards + dynamically-imported recharts `RevenueChart` + plan breakdown + recent activity),
 `/admin/users` (URL-driven search/plan/status filters + pagination), `/admin/users/[id]` (detail +
@@ -43,8 +44,9 @@ wiring task). Live/browser manual verification deferred to a live pass.
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- **Checkpoint 4.2 committed; session audit runs post-commit (per user request).** Audit findings +
-  any fixes will be appended to the 4.2 closeout §9, with all 4 gates re-run after.
+- **Checkpoint 4.2 committed + audit follow-up committed.** Session audit: no 🔴/🟠, one 🟡 fixed
+  (removed redundant `as` casts + unused imports in the user/subscription tables), four 🟡 deferred
+  (see 4.2 closeout §9). All 4 gates re-run green. Ready for 4.3 once context is cleared.
 - **Phase 4.2 live/browser manual verification deferred to a live session** (needs `npm run dev` +
   live DB + an admin-promoted account): `/admin` overview renders real metrics; user-table
   search/plan/status filters update the URL + refetch; pagination; user detail shows workspace +
@@ -386,6 +388,26 @@ The admin dashboard is a real, navigable UI. An admin (reached via a new **Admin
 ### 8. What surprised me
 
 recharts' `ResponsiveContainer` throws under jsdom because it depends on `ResizeObserver`, which jsdom doesn't provide — so the test setup needed a `ResizeObserver` stub alongside the existing `IntersectionObserver`/`matchMedia` ones. Separately, building twice in a row produced a spurious `PageNotFoundError` ("collect page data") across untouched pages — a stale `.next` cache, cleared by `rm -rf .next` before the clean build; compile + type-check had both passed, confirming it wasn't a code error.
+
+### 9. Session audit (run post-commit per user request)
+
+Ran `.claude/session-audit.md` over the 4.2 commit (`21db093`) after re-reading CLAUDE.md + the three
+rules files + the Phase 4 spec. **No 🔴, no 🟠; five 🟡.** The user chose **fix the redundant-casts 🟡,
+defer the rest**.
+- 🟡 **Redundant type assertions** — `UserTable`/`SubscriptionsTable` cast `user.planName as PlanName` /
+  `user.status as SubscriptionStatus`, but `AdminUserRow` already types those fields (off-boundary
+  assertions, against `code.md`) → **fixed**: dropped the 4 casts + the now-unused `PlanName`/
+  `SubscriptionStatus` imports. (`PlanOverrideDialog`'s `event.target.value as PlanName` is a real
+  `<select>`-string→union boundary — kept.)
+- 🟡 **Deferred** (with rationale): pagination Prev/Next use `router.push` not `<Link>` (the search form +
+  `<select>` controls can't be Links; query-state, not nav-menu items → Phase 5 polish); sub-44px
+  pagination/filter/dialog-footer controls (consistent with the accepted 3.3 deferral → Phase 5); the
+  activity "Next" is a heuristic (no total from `listActivity` → v2 count query); `UserDetail.load()`
+  lacks an unmount guard (harmless no-op in React 18, cosmetic consistency). All non-blocking.
+
+All four gates re-run green after the fix: type-check 0 · test **535** (79 files) · coverage
+**87.82 / 79.64 / 89.04 / 90.27** (> 82/82/77/82) · build clean (recharts + `RevenueChart` still in
+separate async chunks). The honestly-unverified item remains the whole live/browser suite (see In progress).
 
 ## Checkpoint 4.1 closeout — 2026-06-04
 

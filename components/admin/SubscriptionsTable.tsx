@@ -7,7 +7,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import PlanBadge from "@/components/billing/PlanBadge"
 import StatusBadge from "@/components/admin/StatusBadge"
 import type { AdminUserList } from "@/lib/admin"
-import type { PlanName, SubscriptionStatus } from "@/lib/types"
 
 const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: "", label: "All statuses" },
@@ -105,8 +104,8 @@ export default function SubscriptionsTable() {
                 {user.email && <p className="truncate text-xs" style={{ color: "var(--text-secondary)" }}>{user.email}</p>}
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
-                <PlanBadge plan={user.planName as PlanName} />
-                <StatusBadge status={user.status as SubscriptionStatus} />
+                <PlanBadge plan={user.planName} />
+                <StatusBadge status={user.status} />
                 {user.stripeCustomerId ? (
                   <a
                     href={`${STRIPE_BASE}/${user.stripeCustomerId}`}
