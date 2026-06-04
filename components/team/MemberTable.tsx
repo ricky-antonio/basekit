@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -30,6 +31,7 @@ function formatJoined(iso: string): string {
 }
 
 export default function MemberTable({ members, currentUserId }: MemberTableProps) {
+  const router = useRouter()
   const [rows, setRows] = useState(members)
   const [removeTarget, setRemoveTarget] = useState<EnrichedMember | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -58,6 +60,8 @@ export default function MemberTable({ members, currentUserId }: MemberTableProps
         toast.error(body?.error ?? "Could not change the role. Please try again.")
       } else {
         toast.success(`${member.displayName} is now ${newRole === "admin" ? "an admin" : "a member"}.`)
+        // Re-sync the server-rendered member summary / pending list.
+        router.refresh()
       }
     } catch {
       setRows(snapshot)
@@ -85,6 +89,8 @@ export default function MemberTable({ members, currentUserId }: MemberTableProps
         toast.error(body?.error ?? "Could not remove the member. Please try again.")
       } else {
         toast.success(`${member.displayName} was removed.`)
+        // Re-sync the server-rendered "Members N of 10" count.
+        router.refresh()
       }
     } catch {
       setRows(snapshot)

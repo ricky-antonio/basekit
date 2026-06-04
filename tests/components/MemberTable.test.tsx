@@ -6,6 +6,7 @@ import MemberTable from "@/components/team/MemberTable"
 import type { EnrichedMember } from "@/lib/team"
 
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 
 const owner: EnrichedMember = {
   id: "m-owner",

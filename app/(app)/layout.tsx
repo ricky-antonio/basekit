@@ -15,7 +15,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     getProfile(user.id),
   ])
 
-  const workspaceName = workspaceResult.ok ? workspaceResult.data.name : "My Workspace"
+  // An authenticated user with no workspace (e.g. removed from the only workspace they
+  // joined via invitation) has nowhere to land in the app shell. Send them to the stable
+  // /no-workspace page rather than /login, which the middleware would bounce back here
+  // (authed) → redirect loop. This layout runs before any child page renders.
+  if (!workspaceResult.ok) redirect("/no-workspace")
+
+  const workspaceName = workspaceResult.data.name
   const profile = profileResult.ok ? profileResult.data : null
   const displayName = deriveDisplayName(user, profile)
   const avatarUrl = profile?.avatar_url ?? null

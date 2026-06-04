@@ -18,7 +18,7 @@ export default async function ProjectsPage() {
   if (!authResult.ok) redirect("/login")
 
   const workspaceResult = await getWorkspace(authResult.data)
-  if (!workspaceResult.ok) redirect("/login")
+  if (!workspaceResult.ok) redirect("/no-workspace")
   const workspace = workspaceResult.data
 
   const [projectsResult, usageResult, plan] = await Promise.all([

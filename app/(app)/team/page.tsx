@@ -18,7 +18,7 @@ export default async function TeamPage() {
   if (!authResult.ok) redirect("/login")
 
   const workspaceResult = await getWorkspace(authResult.data)
-  if (!workspaceResult.ok) redirect("/login")
+  if (!workspaceResult.ok) redirect("/no-workspace")
   const workspace = workspaceResult.data
 
   const [membersResult, plan, usageResult, pendingResult] = await Promise.all([

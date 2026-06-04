@@ -13,7 +13,7 @@ export default async function NewProjectPage() {
   if (!authResult.ok) redirect("/login")
 
   const workspaceResult = await getWorkspace(authResult.data)
-  if (!workspaceResult.ok) redirect("/login")
+  if (!workspaceResult.ok) redirect("/no-workspace")
 
   const plan = await getActivePlan(workspaceResult.data.id)
 

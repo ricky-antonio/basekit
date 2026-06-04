@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react"
 import TeamMembers from "@/components/team/TeamMembers"
 
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 
 beforeEach(() => {
   vi.clearAllMocks()

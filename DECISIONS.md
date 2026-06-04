@@ -5,6 +5,16 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 
 ---
 
+## Workspace-less authenticated users land on `/no-workspace` (not auto-bootstrap)
+**Decision:** An authenticated user with no workspace membership (e.g. removed from the only workspace they joined via invitation) is redirected to a dedicated `/no-workspace` page — a `requireAuth()`-gated landing with a Sign out button — rather than to `/login`. The `(app)` layout enforces it (it runs before any child page renders); the four workspace-gated pages also point their workspace-miss redirect there for consistency.
+**Why:** Phase 3's member-removal made the "authenticated but workspace-less" state reachable for the first time. The pages redirected such users to `/login`, which the middleware bounces back to `/dashboard` (they're authed) → infinite redirect loop ("too many redirects"). `/no-workspace` is exempt from both the middleware's protected prefix and its auth-only bounce, so it's a stable terminal state.
+**Alternatives rejected:**
+- Auto-bootstrap a fresh workspace when none exists — a transient `getWorkspace` read error also yields "no workspace", so this would silently spawn duplicate workspaces on a DB blip. Bootstrap stays a one-time signup action.
+- Redirect to `/login` (status quo) — the loop.
+**Date:** 2026-06-04
+
+---
+
 ## Invitee-side accept flow split into `lib/invitation-accept.ts`
 **Decision:** The invitee-side flow — `getInvitationByToken` (public token preview) and `acceptInvitation` (+ its `memberLimitReached` helper and `ACCESS_GRANTING_STATUSES`) — lives in `lib/invitation-accept.ts`. The owner-side flow — `listPendingInvitations`, `inviteMember`, `revokeInvitation` — stays in `lib/invitations.ts`. No cross-import between them (the accept module is fully self-contained on the service role).
 **Why:** After adding the 3.3 accept-preview + member-limit re-gate, `lib/invitations.ts` hit 452 lines — over the 300-line soft limit (the same trigger that split `lib/team.ts` in 3.2, flagged again by the 3.3 audit). The owner-side/invitee-side seam is the natural one: the invitee-side runs entirely as the service role (the accepting/previewing user isn't a member yet), the owner-side is RLS-scoped owner/admin actions. Result: 241 + 224 lines, no barrel.

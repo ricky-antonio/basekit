@@ -573,7 +573,21 @@ describe("listTeamMembers", () => {
     }
   })
 
-  it("falls back to the email when the profile name is missing", async () => {
+  it("falls back to user_metadata.display_name before the email when the profile name is missing", async () => {
+    mockSupabaseFrom("workspace_members", {
+      data: [{ id: "m3", user_id: "u-3", role: "member", joined_at: "2026-01-03T00:00:00Z" }],
+      error: null,
+    })
+    mockSupabaseFrom("profiles", { data: [{ id: "u-3", display_name: null, avatar_url: null }], error: null })
+    mockSupabaseAdminUser({ id: "u-3", email: "meta@example.com", user_metadata: { display_name: "Meta Name" } })
+
+    const result = await listTeamMembers(WORKSPACE_ID)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data[0]?.displayName).toBe("Meta Name")
+  })
+
+  it("falls back to the email when both the profile name and user_metadata are missing", async () => {
     mockSupabaseFrom("workspace_members", {
       data: [{ id: "m2", user_id: "u-2", role: "member", joined_at: "2026-01-02T00:00:00Z" }],
       error: null,

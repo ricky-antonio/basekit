@@ -25,7 +25,7 @@ export default async function DashboardPage() {
     getProfile(user.id),
   ])
 
-  if (!workspaceResult.ok) redirect("/login")
+  if (!workspaceResult.ok) redirect("/no-workspace")
 
   const workspace = workspaceResult.data
   const displayName = deriveDisplayName(user, profileResult.ok ? profileResult.data : null)

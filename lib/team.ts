@@ -128,25 +128,30 @@ export async function listTeamMembers(
 
   // Bounded by member count (≤10 on Pro). Emails are only in auth.users — resolved
   // one-by-one via the admin API, mirroring inviteMember's already-a-member check.
+  // We also pull the signup display name from user_metadata: the profiles row is
+  // created bare by the trigger, so a member who never edited their profile has a
+  // null profiles.display_name but a real user_metadata.display_name.
   const accounts = await Promise.all(
     userIds.map(async (id) => {
       const { data } = await supabase.auth.admin.getUserById(id)
-      return [id, data?.user?.email ?? null] as const
+      const metadata = data?.user?.user_metadata as { display_name?: string } | undefined
+      return [id, { email: data?.user?.email ?? null, metaName: metadata?.display_name ?? null }] as const
     }),
   )
-  const emails = new Map(accounts)
+  const accountById = new Map(accounts)
 
   return {
     ok: true,
     data: roster.map((row) => {
       const profile = profiles.get(row.user_id)
-      const email = emails.get(row.user_id) ?? null
+      const account = accountById.get(row.user_id)
+      const email = account?.email ?? null
       return {
         id: row.id,
         userId: row.user_id,
         role: row.role as WorkspaceMemberRole,
         joinedAt: row.joined_at,
-        displayName: profile?.displayName ?? email ?? "Member",
+        displayName: profile?.displayName ?? account?.metaName ?? email ?? "Member",
         email,
         avatarUrl: profile?.avatarUrl ?? null,
       }
