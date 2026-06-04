@@ -86,13 +86,17 @@ create table if not exists invitations (
   invited_by   uuid        references auth.users(id),
   accepted_at  timestamptz,
   expires_at   timestamptz not null default (now() + interval '7 days'),
-  created_at   timestamptz not null default now(),
-  unique (workspace_id, email) deferrable initially immediate
+  created_at   timestamptz not null default now()
 );
 
 create unique index if not exists invitations_token_idx     on invitations (token);
 create        index if not exists invitations_workspace_idx on invitations (workspace_id);
 create        index if not exists invitations_email_idx     on invitations (email) where accepted_at is null;
+-- PARTIAL unique: only ONE PENDING invite per (workspace, email). Accepted invitations
+-- (accepted_at set) are excluded, so a removed member can be re-invited. A full
+-- unique(workspace_id,email) would lock the pair forever after the first accept.
+create unique index if not exists invitations_pending_unique_idx
+  on invitations (workspace_id, email) where accepted_at is null;
 
 alter table invitations enable row level security;
 
