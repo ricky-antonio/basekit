@@ -32,13 +32,16 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const url = request.nextUrl.clone()
+  // /team/accept is a PUBLIC invitation page — an invitee may have no account yet,
+  // so it must not be swept into the protected /team prefix below.
+  const isPublicRoute = url.pathname.startsWith("/team/accept")
   const isProtectedRoute =
-    url.pathname.startsWith("/(app)") ||
-    url.pathname.startsWith("/dashboard") ||
-    url.pathname.startsWith("/projects") ||
-    url.pathname.startsWith("/team") ||
-    url.pathname.startsWith("/settings") ||
-    url.pathname.startsWith("/admin")
+    !isPublicRoute &&
+    (url.pathname.startsWith("/dashboard") ||
+      url.pathname.startsWith("/projects") ||
+      url.pathname.startsWith("/team") ||
+      url.pathname.startsWith("/settings") ||
+      url.pathname.startsWith("/admin"))
 
   // Auth pages that signed-in users should be bounced from. /reset-password
   // is intentionally excluded — the password-recovery flow lands there with
