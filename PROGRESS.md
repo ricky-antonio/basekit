@@ -4,9 +4,10 @@
 
 ## Current phase
 Phase 4 — Admin + Impersonation — **CODE-COMPLETE (all 3 checkpoints built)**. Checkpoint 4.3
-(impersonation end-to-end) code-complete, all 4 gates green, **committed**; session audit runs
-post-commit (per user request). **564 tests; coverage 87.72/79.74/89.13/90.05 (> 82/82/77/82); build
-clean** (both impersonation routes generated). Checkpoints 4.1 + 4.2 complete (built + audited). Phase 3
+(impersonation end-to-end) code-complete, all 4 gates green, **committed**; **session audit done
+post-commit** (no code 🔴; one 🟠 fixed — cookie-derived effective user, dropping the service-role
+lookup from `getUser`; 🟡s deferred — see 4.3 closeout §9). **564 tests; coverage
+87.71/79.74/89.13/90.04 (> 82/82/77/82); build clean** (both impersonation routes generated). Checkpoints 4.1 + 4.2 complete (built + audited). Phase 3
 COMPLETE (built + audited + live-verified 2026-06-04). **Phase 4 is NOT shippable yet** — the full
 Phase 4 live/manual verification suite (admin promote, in-browser impersonation, and applying + RLS-
 re-verifying the 3 new admin-select policies) is deferred to a live session. Next: Phase 4 live pass,
@@ -14,7 +15,7 @@ then Phase 5.
 
 ## Current checkpoint
 Checkpoint 4.3 — Impersonation end-to-end — **CODE-COMPLETE: all 4 gates green, committed; audit
-runs post-commit.** Built `lib/impersonation.ts` (`startImpersonation`/`endImpersonation`/
+done post-commit (🟠 fixed: cookie-derived effective user; gates re-green).** Built `lib/impersonation.ts` (`startImpersonation`/`endImpersonation`/
 `getImpersonationContext`; `jose` HS256-signed httpOnly cookie, 30-min TTL, key = SHA-256 of the
 service-role secret). `lib/auth.ts` now splits **effective app identity** (`getUser()` returns the
 impersonated target when an admin holds a valid cookie) from **real identity** (`getSessionUser()` +
@@ -48,8 +49,11 @@ live/browser verification (incl. applying + re-verifying the new RLS policies) d
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- **Checkpoint 4.3 committed; session audit runs post-commit** (per user request — mirrors 4.1/4.2;
-  findings + any fixes will be appended as 4.3 closeout §9, re-running the 4 gates after any fix).
+- **Checkpoint 4.3 committed; session audit done post-commit** (per user request — mirrors 4.1/4.2).
+  No code 🔴; one 🟠 fixed (cookie-derived effective user — dropped the service-role `getUserById` from
+  `getUser`, removing a Server-Component service-role call + a per-request round-trip); 🟡s deferred. All
+  4 gates re-run green (564 tests; 87.71/79.74/89.13/90.04). See 4.3 closeout §9. The audit fix + this
+  doc update land in a dedicated **audit-follow-up commit** (mirrors the 4.1/4.2 audit-follow-up commits).
 - **🔴 Apply the 3 new admin-select RLS policies to the live DB BEFORE the Phase 4 live pass.**
   `combined.sql` adds `members_select_admin` / `usage_select_admin` / `projects_select_admin`; until
   they're applied (SQL Editor) the impersonator's session can't read the target's workspace/usage/
@@ -404,6 +408,30 @@ An admin opens any user's detail page and clicks **Impersonate**. The server ver
 ### 8. What surprised me
 
 `jose`'s Web Crypto signing path throws `payload must be an instance of Uint8Array` under vitest's **jsdom** environment — jsdom runs in a separate realm, so jose's internal `instanceof Uint8Array` check fails against the module-realm constructor even though the bytes are valid. The fix was a per-file `// @vitest-environment node` directive (the lib is server-only anyway), which then tripped the shared `tests/setup.ts` `window.matchMedia` stub (no `window` in node) — so the setup needed a `typeof window` guard. Both are pure test-environment artifacts; the real server runtime (Node) has neither problem.
+
+### 9. Session audit (run post-commit per user request)
+
+Ran `.claude/session-audit.md` over the 4.3 commit (`9ea3810`) after re-reading CLAUDE.md + the three
+rules files + the Phase 4 spec. **No code 🔴; one 🟠 + several 🟡.** The user chose **fix the 🟠**.
+- 🟠 **Service-role client inside `getUser()` (a Server-Component-callable path)** — `resolveImpersonatedUser`
+  called `createServiceClient().auth.admin.getUserById(targetUserId)`, but security.md keeps `auth.admin.*`
+  to route handlers (`getWorkspaceOwnerContact` carries that warning). **Fixed:** the effective user is now
+  built from the **tamper-proof signed cookie** (`{...sessionUser, id: targetUserId, email: targetEmail}`) —
+  no service-role lookup in `getUser` and one fewer DB round-trip per request. Existence is already verified
+  once at `startImpersonation` (NOT_FOUND), so trusting the short-lived signed cookie at read time is correct.
+  `createServiceClient` dropped from `lib/auth.ts` imports; the swap test now asserts the cookie-derived
+  email. See DECISIONS → "Impersonation swaps the app identity…".
+- 🟡 **Deferred** (with rationale): `getUserById` in `startImpersonation` isn't try/caught (the read-side one
+  is now gone; the start-side returns NOT_FOUND on `{error}` and only an unexpected throw would 500 → low
+  risk); banner Exit button is 36px (`min-h-9`) < 44px (consistent with the accepted 3.3/4.2 sub-44px
+  deferrals → Phase 5 polish); stale banner if the target is deleted / admin demoted mid-session (cosmetic
+  edge); no Zod on the path `id` (consistent with the existing `[id]` route; `getUserById` returns NOT_FOUND
+  for garbage). The 🔴 "apply the 3 RLS policies to the live DB" is a deploy/verify step (Known issues), not
+  a code fix.
+
+All four gates re-run green after the fix: type-check 0 · test **564** (82 files) · coverage
+**87.71 / 79.74 / 89.13 / 90.04** (> 82/82/77/82) · build clean (both impersonation routes generated). The
+honestly-unverified items remain the whole live/browser suite + applying the RLS policies (see In progress).
 
 ## Checkpoint 4.2 closeout — 2026-06-04
 

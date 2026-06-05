@@ -1,5 +1,5 @@
 import type { User } from "@supabase/supabase-js"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { getImpersonationContext } from "@/lib/impersonation"
 import type { ApiResult, UserRole } from "@/lib/types"
 
@@ -40,9 +40,16 @@ async function resolveImpersonatedUser(sessionUser: User): Promise<User | null> 
     .single()
   if (profile?.role !== "admin") return null
 
-  const service = createServiceClient()
-  const { data } = await service.auth.admin.getUserById(context.targetUserId)
-  return data?.user ?? null
+  // Build the effective user from the tamper-proof signed cookie — no service-role admin
+  // lookup in this Server-Component-callable path (security.md keeps auth.admin.* to route
+  // handlers). The target's existence is verified once at startImpersonation; downstream
+  // reads key off id, and the display name resolves from the target's profile.
+  return {
+    ...sessionUser,
+    id: context.targetUserId,
+    email: context.targetEmail ?? undefined,
+    user_metadata: {},
+  }
 }
 
 export async function requireAuth(): Promise<ApiResult<User>> {

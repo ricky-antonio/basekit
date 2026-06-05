@@ -3,7 +3,6 @@ import {
   mockSupabase,
   mockSupabaseAuth,
   mockSupabaseFrom,
-  mockSupabaseAdminUser,
   resetSupabaseMock,
 } from "@/tests/mocks/supabase"
 
@@ -69,10 +68,9 @@ describe("getUser", () => {
     expect(user).toBeNull()
   })
 
-  it("returns the impersonated target when an admin holds a valid cookie", async () => {
+  it("returns the impersonated target (built from the signed cookie) when an admin holds a valid cookie", async () => {
     mockSupabaseAuth(adminUser)
     mockSupabaseFrom("profiles", { data: { role: "admin" }, error: null })
-    mockSupabaseAdminUser({ id: "target-1", email: "target@example.com" })
     mocks.getImpersonationContext.mockResolvedValue({
       adminId: adminUser.id,
       targetUserId: "target-1",
@@ -81,6 +79,7 @@ describe("getUser", () => {
     })
     const user = await getUser()
     expect(user?.id).toBe("target-1")
+    expect(user?.email).toBe("target@example.com")
   })
 
   it("ignores the cookie when the session user is not the admin who minted it", async () => {
