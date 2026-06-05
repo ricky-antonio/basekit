@@ -35,6 +35,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 export default function UserDetail({ userId }: { userId: string }) {
   const [state, setState] = useState<State>({ status: "loading" })
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [impersonating, setImpersonating] = useState(false)
 
   const load = useCallback(async () => {
     setState({ status: "loading" })
@@ -74,6 +75,26 @@ export default function UserDetail({ userId }: { userId: string }) {
     }
   }
 
+  async function handleImpersonate() {
+    setImpersonating(true)
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/impersonate`, { method: "POST" })
+      if (response.ok) {
+        // Full reload so every server layout re-resolves as the impersonated user.
+        window.location.href = "/dashboard"
+        return
+      }
+      const error: ApiError = await response
+        .json()
+        .catch(() => ({ error: "Could not start impersonation. Please try again.", code: "INTERNAL_ERROR" as const }))
+      toast.error(error.error)
+      setImpersonating(false)
+    } catch {
+      toast.error("Could not start impersonation. Please try again.")
+      setImpersonating(false)
+    }
+  }
+
   if (state.status === "loading") {
     return (
       <div data-testid="user-detail-skeleton" className="space-y-6">
@@ -100,7 +121,12 @@ export default function UserDetail({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-6">
-      <UserDetailHeader detail={detail} onOverride={() => setDialogOpen(true)} />
+      <UserDetailHeader
+        detail={detail}
+        onOverride={() => setDialogOpen(true)}
+        onImpersonate={handleImpersonate}
+        impersonating={impersonating}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section

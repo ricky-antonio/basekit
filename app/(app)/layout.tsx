@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation"
 import { requireAuth } from "@/lib/auth"
+import { getImpersonationContext } from "@/lib/impersonation"
 import { getWorkspace } from "@/lib/workspace"
 import { getProfile, deriveDisplayName } from "@/lib/profile"
 import AppShell from "@/components/layout/AppShell"
+import ImpersonateBanner from "@/components/admin/ImpersonateBanner"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const authResult = await requireAuth()
@@ -10,9 +12,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const user = authResult.data
 
-  const [workspaceResult, profileResult] = await Promise.all([
+  const [workspaceResult, profileResult, impersonation] = await Promise.all([
     getWorkspace(user),
     getProfile(user.id),
+    getImpersonationContext(),
   ])
 
   // An authenticated user with no workspace (e.g. removed from the only workspace they
@@ -28,13 +31,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const isAdmin = profile?.role === "admin"
 
   return (
-    <AppShell
-      workspaceName={workspaceName}
-      displayName={displayName}
-      avatarUrl={avatarUrl}
-      isAdmin={isAdmin}
-    >
-      {children}
-    </AppShell>
+    <div className="flex h-screen flex-col overflow-hidden">
+      <ImpersonateBanner context={impersonation} />
+      <div className="min-h-0 flex-1">
+        <AppShell
+          workspaceName={workspaceName}
+          displayName={displayName}
+          avatarUrl={avatarUrl}
+          isAdmin={isAdmin}
+        >
+          {children}
+        </AppShell>
+      </div>
+    </div>
   )
 }

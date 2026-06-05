@@ -657,3 +657,35 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 - Leave it over the limit — accrues toward the unreadable-file failure mode the rule guards against.
 - One handler file per event — over-fragmented for six short handlers that share the same helpers.
 **Date:** 2026-05-30
+
+---
+
+## Impersonation swaps the app identity (`getUser()`) but keeps admin authorization on the real session user
+**Decision:** During an active impersonation, `lib/auth.ts` `getUser()` returns the **target** user (so every Server Component / Server Action keyed off it renders the target's data), while a new `getSessionUser()` returns the real session user and `requireAdmin()` now authorizes against `getSessionUser()` — never the swapped identity. The cookie is honored only when the real session user IS the admin who minted it AND still has `role='admin'`.
+**Why:** The spec's model is "`getUser()` returns the target and the app just works." But authorization must not flip — if `requireAdmin()` saw the (non-admin) target it would (a) lock the admin out of the admin section and, worse, (b) make the **end-impersonation** route impossible to authorize, dead-locking the exit. Splitting "effective app identity" (`getUser`) from "real identity for authorization" (`getSessionUser` / `requireAdmin`) lets the admin browse the impersonated app AND retain admin powers + a working Exit. When not impersonating the two are identical, so no existing behavior changes.
+**Alternatives rejected:**
+- Mint a real Supabase session for the target — needs their credentials; invasive, mutates the real session, hard to reverse.
+- Swap `requireAdmin` too — locks the admin out of `/admin` and makes Exit unauthorizable.
+**Date:** 2026-06-04
+
+---
+
+## Impersonation is read-observational in v1; completed the admin-select RLS pattern for the read path
+**Decision:** Added three SELECT RLS policies — `members_select_admin` (workspace_members), `usage_select_admin` (usage), `projects_select_admin` (projects) — each `using (is_admin(auth.uid()))`, mirroring the pre-existing `*_select_admin` policies on profiles/workspaces/subscriptions/activity_log. With these, the impersonator's own RLS session can read the target's workspace/usage/projects, so `getWorkspace`/dashboard/projects render the target's data. No admin INSERT/UPDATE/DELETE-for-others policies were added, so **writes during impersonation run under the admin's own scope and are RLS-blocked for the target's workspace** — impersonation is effectively read-only.
+**Why:** The app's data reads use the RLS-bound client (the admin's session cookie), and admin-select policies existed for only 4 of the 7 tables the app shell touches — without the other 3 the impersonator would hit `/no-workspace` live. Completing the pattern (SELECT-only, `is_admin`-gated) is the minimal change that makes the `getUser()`-swap model actually surface the target's data. Read-only impersonation is a safe, defensible v1 boundary (support staff observe what the user sees; they can't accidentally mutate the user's data). The new policies don't widen non-admin access, so the two-account RLS isolation test is unaffected.
+**Alternatives rejected:**
+- Route every impersonated read through the service role — invasive across many lib files and far more dangerous (service role bypasses ALL RLS; one unscoped query = cross-tenant leak).
+- Add admin write policies too — turns impersonation into full act-as; out of scope for v1 and a larger audit surface.
+**Migration note:** `combined.sql` updated; the 3 policies must be applied to the live DB (SQL Editor) and the two-account RLS test re-run before the Phase 4 live pass is signed off.
+**Date:** 2026-06-04
+
+---
+
+## Impersonation cookie: jose HS256 JWT, key derived from the service-role secret; ending needs no requireAdmin
+**Decision:** The impersonation cookie (`bk_impersonate`) is a `jose` HS256-signed JWT (`{adminId, targetUserId, targetEmail, exp}`), httpOnly + SameSite=Lax + Secure-in-prod, 30-minute TTL. The HMAC key is `SHA-256(SUPABASE_SERVICE_ROLE_KEY)` (a fixed 32-byte key; the raw secret's length isn't guaranteed ≥256 bits). `jose` was promoted from a transitive dep (via `@supabase/ssr`) to a direct dependency. The **end** route runs no `requireAdmin()` — the signed httpOnly cookie is itself the proof, and clearing it is always safe + idempotent.
+**Why:** A signed JWT satisfies the spec and `jose`'s `jwtVerify` enforces both signature and `exp` (expired/forged → treated as no impersonation). Reusing the service-role secret (server-only, never `NEXT_PUBLIC_*`) avoids adding a new required env var to the contract; a leaked/forged cookie is still inert because `getUser()` only honors it for the matching, currently-authenticated admin. A dedicated `IMPERSONATION_SECRET` is a sensible prod-hardening for v2. The end route can't gate on `requireAdmin` because `getUser()` resolves to the (non-admin) target while the session is active — that would dead-lock the exit.
+**Alternatives rejected:**
+- Node `crypto` HMAC hand-rolled JWS — reimplements what `jose` already does correctly + edge-safely.
+- New `IMPERSONATION_SECRET` env var — extra setup/config surface for marginal benefit at v1, given the cookie is only honored for the matching admin session.
+**Test note:** `jose`'s Web Crypto signing checks `instanceof Uint8Array` against the module realm, which jsdom's separate realm breaks — so `tests/lib/impersonation.test.ts` runs under the `node` environment, and `tests/setup.ts` guards its DOM stubs with `typeof window`.
+**Date:** 2026-06-04

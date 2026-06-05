@@ -19,7 +19,7 @@ export default function AppShell({
 }: AppShellProps) {
   return (
     <div
-      className="flex h-screen overflow-hidden"
+      className="flex h-full overflow-hidden"
       style={{ background: "var(--bg-app)" }}
     >
       {/* Skip to content (a11y) */}

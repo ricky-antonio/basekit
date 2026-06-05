@@ -3,31 +3,35 @@
 ---
 
 ## Current phase
-Phase 4 — Admin + Impersonation — **IN PROGRESS**. Checkpoint 4.2 (admin pages + components)
-code-complete, all 4 gates green, **committed**; coverage thresholds 82/82/77/82. **Session audit run
-post-commit (per user request)**: no 🔴/🟠, one 🟡 fixed (dropped redundant `as` casts in the user/
-subscription tables), four 🟡 deferred — all 4 gates re-run green (see 4.2 closeout §9). Checkpoint 4.1
-is complete (built + audited). Phase 3 is COMPLETE (built + audited + live-verified 2026-06-04).
-Next: Checkpoint 4.3 — impersonation end-to-end.
+Phase 4 — Admin + Impersonation — **CODE-COMPLETE (all 3 checkpoints built)**. Checkpoint 4.3
+(impersonation end-to-end) code-complete, all 4 gates green, **committed**; session audit runs
+post-commit (per user request). **564 tests; coverage 87.72/79.74/89.13/90.05 (> 82/82/77/82); build
+clean** (both impersonation routes generated). Checkpoints 4.1 + 4.2 complete (built + audited). Phase 3
+COMPLETE (built + audited + live-verified 2026-06-04). **Phase 4 is NOT shippable yet** — the full
+Phase 4 live/manual verification suite (admin promote, in-browser impersonation, and applying + RLS-
+re-verifying the 3 new admin-select policies) is deferred to a live session. Next: Phase 4 live pass,
+then Phase 5.
 
 ## Current checkpoint
-Checkpoint 4.2 — Admin pages + components — **CODE-COMPLETE: all 4 gates green, committed;
-audit done post-commit (dropped redundant casts; 4 🟡 deferred).** Built the full navigable admin UI consuming the 4.1 API routes via
-client "screen" components (skeleton-on-fetch, mirroring `TeamMembers`): `/admin` overview (4 metric
-cards + dynamically-imported recharts `RevenueChart` + plan breakdown + recent activity),
-`/admin/users` (URL-driven search/plan/status filters + pagination), `/admin/users/[id]` (detail +
-`PlanOverrideDialog` → PATCH), `/admin/subscriptions` (status filter + Stripe deep links),
-`/admin/activity` (action filter + pagination), `loading.tsx`, and `AdminNav` in the `(admin)` layout.
-13 components in `components/admin/` + pure `lib/admin-format.ts`. **Additions beyond the task list:**
-new `GET /api/admin/activity` route (the activity page/feed needs it; `listActivity` had none) and
-`stripeCustomerId` surfaced on `AdminUserRow` (subscriptions Stripe link). Plus a role-gated **Admin**
-item in the Topbar user menu (the in-app entry point; `isAdmin` flows layout→AppShell→Topbar).
-Installed `recharts`. **535 tests pass; coverage 87.82/79.64/89.04/90.27 (> 82/82/77/82); build clean,
-chart in a separate async chunk.** The **Impersonate** button is intentionally deferred to 4.3 (its
-wiring task). Live/browser manual verification deferred to a live pass.
-(See "Checkpoint 4.2 closeout — 2026-06-04" below.)
+Checkpoint 4.3 — Impersonation end-to-end — **CODE-COMPLETE: all 4 gates green, committed; audit
+runs post-commit.** Built `lib/impersonation.ts` (`startImpersonation`/`endImpersonation`/
+`getImpersonationContext`; `jose` HS256-signed httpOnly cookie, 30-min TTL, key = SHA-256 of the
+service-role secret). `lib/auth.ts` now splits **effective app identity** (`getUser()` returns the
+impersonated target when an admin holds a valid cookie) from **real identity** (`getSessionUser()` +
+`requireAdmin()` authorize the real admin, so admin powers + a working Exit survive). `ImpersonateBanner`
+(sticky full-width danger bar, `z-impersonate-banner`, Exit→POST end→hard reload) renders in both
+`(app)` + `(admin)` layouts; the **Impersonate** button is wired onto `UserDetailHeader`/`UserDetail`
+(POST start → reload as target). 2 routes: `POST /api/admin/users/[id]/impersonate` (requireAdmin +
+`impersonate` 5/min limiter + `admin.impersonation_started` audit) and `POST /api/admin/impersonate/end`
+(cookie-as-proof, no requireAdmin to avoid an exit deadlock, idempotent, `admin.impersonation_ended`
+audit). **Read path:** added 3 admin-select RLS policies (`workspace_members`/`usage`/`projects`) so the
+impersonator's session can read the target's data — impersonation is read-observational in v1 (writes
+run under the admin's own scope, RLS-blocked for the target). Promoted `jose` to a direct dep. Full
+live/browser verification (incl. applying + re-verifying the new RLS policies) deferred to a live pass.
+(See "Checkpoint 4.3 closeout — 2026-06-04" below.)
 
 ## Completed
+- [2026-06-04] Phase 4.3 — Impersonation end-to-end: `lib/impersonation.ts` (`jose` HS256-signed httpOnly cookie, 30-min TTL, key=SHA-256 of the service-role secret); `lib/auth.ts` split into effective app identity (`getUser()` returns the impersonated target) vs real identity (`getSessionUser()` + `requireAdmin()` keep admin powers); `ImpersonateBanner` in both layouts + the wired Impersonate button on user detail; 2 routes (`POST /api/admin/users/[id]/impersonate` w/ `impersonate` 5/min limiter + audit, `POST /api/admin/impersonate/end` cookie-as-proof + audit); 3 new admin-select RLS policies (`workspace_members`/`usage`/`projects`) for the read path; `jose` promoted to a direct dep. 564 tests; coverage 87.72/79.74/89.13/90.05. Code-complete + committed; audit post-commit; live verification deferred. (See "Checkpoint 4.3 closeout — 2026-06-04" below.)
 - [2026-06-04] Phase 4.2 — Admin pages + components: full navigable admin UI (overview w/ metric cards + dynamic recharts chart + plan breakdown + recent activity; users table w/ URL search/filter/pagination; user detail + plan-override dialog; subscriptions w/ Stripe deep links; activity log) consuming the 4.1 routes via client screen components; `AdminNav` shell; role-gated Admin item in the Topbar user menu. Added `GET /api/admin/activity` + `stripeCustomerId` on `AdminUserRow`; installed `recharts` (dynamically imported). 535 tests; coverage 87.82/79.64/89.04/90.27. Code-complete + committed; audit post-commit; live verification deferred. (See "Checkpoint 4.2 closeout — 2026-06-04" below.)
 - [2026-06-04] Phase 4.1 — Admin lib + metrics + API routes: `lib/admin.ts` + `lib/admin-metrics.ts` + `lib/validation/admin.ts`, `adminRead` limiter, 3 admin API routes, `(admin)` auth boundary (`requireAdmin` redirect + toast) + placeholder `/admin` page; coverage thresholds → 82/82/77/82. 477 tests; coverage 86.89/78.82/88.3/89.46. Code-complete + committed; audit post-commit; live manual verification deferred. (See "Checkpoint 4.1 closeout — 2026-06-04" below.)
 - [2026-06-04] Phase 3 manual verification — full team lifecycle verified live (paired session): invite + dedup/already-member guards, unregistered-invitee signup→`bk_invite` cookie→callback→join *existing* workspace, existing-account accept, member role/remove + owner-protection, removed-member access loss, revoke + expired-link, plan limits (Free + Pro-cap UpgradePrompt) + the **accept-time member-limit re-gate**, RLS 14/14 + member read-only gating, activity-log all 4 actions. **Found + fixed 5 bugs** (middleware-gated `/team/accept`, removed-member redirect loop → `/no-workspace`, member-name `user_metadata` fallback, remove/role `router.refresh()` sync, invitations partial-unique re-invite). Deferred: live invite email (verified Resend domain), real-phone pass, OAuth-invite cookie gap. (See "Phase 3 manual verification — 2026-06-04" below.)
@@ -44,27 +48,33 @@ wiring task). Live/browser manual verification deferred to a live pass.
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- **Checkpoint 4.2 committed + audit follow-up committed.** Session audit: no 🔴/🟠, one 🟡 fixed
-  (removed redundant `as` casts + unused imports in the user/subscription tables), four 🟡 deferred
-  (see 4.2 closeout §9). All 4 gates re-run green. Ready for 4.3 once context is cleared.
-- **Phase 4.2 live/browser manual verification deferred to a live session** (needs `npm run dev` +
-  live DB + an admin-promoted account): `/admin` overview renders real metrics; user-table
-  search/plan/status filters update the URL + refetch; pagination; user detail shows workspace +
-  subscription + last 20 activities; plan override → DB + the user's `/settings/billing` reflects it
-  immediately; `activity_log` gains the `admin.plan_override` row; subscriptions Stripe deep links;
-  activity-log action filter; mobile card-stacking; the role-gated Topbar **Admin** link.
-- **Phase 4.1 live manual verification still deferred** (folds into the 4.2/4.3 live pass): admin
-  promote via SQL; non-admin `/admin` → `/dashboard` + toast; admin curl on `/api/admin/users`
-  (+ filters); PATCH override → `subscriptions` + `activity_log`; `/api/admin/metrics` vs seeded data;
-  `activity_log` admin-only RLS via a non-admin token.
+- **Checkpoint 4.3 committed; session audit runs post-commit** (per user request — mirrors 4.1/4.2;
+  findings + any fixes will be appended as 4.3 closeout §9, re-running the 4 gates after any fix).
+- **🔴 Apply the 3 new admin-select RLS policies to the live DB BEFORE the Phase 4 live pass.**
+  `combined.sql` adds `members_select_admin` / `usage_select_admin` / `projects_select_admin`; until
+  they're applied (SQL Editor) the impersonator's session can't read the target's workspace/usage/
+  projects and impersonation will land on `/no-workspace`. Then **re-run `scripts/rls-verify.mjs`**
+  (must stay 14/14 — the policies only widen *admin* reads, not cross-tenant non-admin reads) per
+  security.md's "repeat the two-account test for any new RLS policy."
+- **Phase 4.3 live/browser manual verification deferred to a live session** (needs `npm run dev` +
+  live DB + an admin-promoted account + the policies above applied): Impersonate → app shows the
+  target's data; banner unmissable on top of dropdowns/dialogs + after scroll/route change; Exit →
+  back to own admin on the user-detail page; `activity_log` has start + end rows with `impersonator_id`
+  set; cookie expiry (backdate → reverts to admin); non-admin POST → 403; rate limit (6th start →
+  429). NOTE v1 boundary: **writes during impersonation are RLS-blocked** (read-observational) — verify
+  reads work; a write attempt erroring is expected, not a bug.
+- **Phase 4.1 + 4.2 live manual verification still deferred** (fold into the single Phase 4 live pass):
+  admin promote via SQL; non-admin `/admin` → `/dashboard` + toast; `/api/admin/users` (+ filters) +
+  metrics vs seeded data; PATCH override → `subscriptions` + `activity_log`; user-table search/filter/
+  pagination; subscriptions Stripe deep links; activity-log filter; mobile card-stacking; the role-
+  gated Topbar **Admin** link; `activity_log` admin-only RLS via a non-admin token.
 - **Carry-over deferrals from Phase 3** (non-blocking, batch into Phase 5 / when a domain is wired):
   1. **Live invite email** — gated on a **verified Resend domain** (standing 3.1 issue).
   2. **Real-phone pass** — the `code.md` "test on a real phone once per phase" item.
   3. **OAuth-invite cookie gap** (audit 🟡) — `/signup?invite=` + "Sign up with Google" doesn't carry
      the `bk_invite` cookie; email-signup + existing-account paths work. Documented v1 defer.
-- **Next:** Checkpoint **4.3 — Impersonation end-to-end** (`lib/impersonation.ts`, impersonate/end
-  routes, `ImpersonateBanner` in both layouts, `getUser()` honors the impersonation cookie, audited
-  start/end; wire the **Impersonate** button on the user-detail page).
+- **Next:** Phase 4 live verification pass (apply RLS policies + run the deferred 4.1/4.2/4.3 suites),
+  then **Phase 5 — Landing + Polish + Pre-deploy**.
 
 ## Phase 2 — entry notes (read before Checkpoint 2.1)
 Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-ready, no blockers**: `subscriptions` has all Stripe columns + `updated_at` trigger + `unique(workspace_id)`/`unique(stripe_customer_id)`; `usage` has `unique(workspace_id, resource)` + `count >= 0` with `increment_usage` (upsert) / `decrement_usage` (clamps at 0); `projects` RLS = member insert/select/update + owner/admin-only delete; `stripe_events` = `id`/`type`/`processed_at` (no RLS); `service_role` grants fixed; `usage_select_members` exists so enforcement reads don't fail open. Watch-items:
@@ -96,6 +106,10 @@ Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-read
 **At Phase 2 start:** raise `vitest.config.ts` coverage thresholds to **75 / 75 / 70 / 75** (lines/functions/branches/statements) per `.claude/rules/testing.md`.
 
 ## Known issues
+- **🔴 Phase 4.3 adds 3 admin-select RLS policies that must be applied to the live DB** (`members_select_admin`, `usage_select_admin`, `projects_select_admin` in `combined.sql`). Until applied via SQL Editor, in-browser impersonation lands the impersonator on `/no-workspace` (the impersonator's own RLS session can't read the target's workspace/usage/projects). After applying, re-run `scripts/rls-verify.mjs` (expect 14/14 — the policies widen only *admin* reads). See DECISIONS → "Impersonation is read-observational in v1…".
+- **Impersonation is read-observational in v1** — `getUser()` swaps the app identity to the target so reads show the target's data, but writes still run under the admin's own RLS scope and are blocked for the target's workspace (no admin write-for-others policies). A mutation attempt while impersonating fails by design; this is a documented v1 boundary, not a bug. See DECISIONS → "Impersonation is read-observational in v1…".
+- **Impersonation cookie is signed with `SHA-256(SUPABASE_SERVICE_ROLE_KEY)`** (no dedicated secret). Safe for v1 (the cookie is only honored for the matching, currently-authenticated admin), but a dedicated `IMPERSONATION_SECRET` is a sensible prod-hardening for v2. See DECISIONS → "Impersonation cookie: jose HS256 JWT…".
+- **`lib/impersonation.ts` is tested under the `node` vitest environment** (jose's Web Crypto realm check fails under jsdom); `tests/setup.ts` now guards its DOM stubs with `typeof window`. Flagged so the env split isn't mistaken for a misconfiguration.
 - **Phase 2.1 webhook flow is code-complete but unverified against live Stripe** — needs a manual `stripe listen` + live-DB session (see Checkpoint 2.1 closeout → Deferred). `lib/email.ts` ships as **stubs** (no real email sent until Phase 3.1). `stripe trigger` fixtures skip gracefully (no workspace mapping) unless a `metadata.workspaceId` override is added.
 - ~~**2.3 checkout MUST guard already-subscribed workspaces**~~ — **RESOLVED in 2.3**: the checkout route returns 409 → portal when `getActivePlan !== 'free'` (tested). See DECISIONS → "Checkout route rejects already-subscribed workspaces". (Other 2.1 deferred findings remain in Checkpoint 2.1 closeout → "Post-hardening audit".)
 - ~~**Phase 2 not yet shippable — full browser upgrade lifecycle unverified**~~ — **RESOLVED 2026-05-30**: full lifecycle verified live (Checkout→webhook→Pro→portal→cancel→past-due→rate-limit 429→mobile, RLS 14/14). Customer Portal was already configured. See "Phase 2 manual verification — 2026-05-30".
@@ -316,6 +330,80 @@ Verified via `scripts/rls-verify.mjs` (new) — a reproducible form of setup.md 
 
 _(Appended chronologically as checkpoints complete. Newest at the top.
 Each closeout follows the 8-item template defined in CLAUDE.md → Checkpoint protocol.)_
+
+## Checkpoint 4.3 closeout — 2026-06-04
+
+> **Status:** code-complete, all 4 gates green, **committed**. Per user request the session audit
+> runs **after** this commit; its findings + any fixes are appended as §9 (mirrors 4.1/4.2). This is
+> the **last checkpoint of Phase 4** — full Phase 4 live/manual verification (incl. applying the 3 new
+> RLS policies + re-running the two-account RLS test) is deferred to a live session, so Phase 4 is
+> code-complete but **not yet signed off as shippable**.
+
+### 1. Planned vs delivered
+
+**Impersonation lib + routes**
+- ✅ `lib/impersonation.ts` — `startImpersonation({ admin, targetUserId })`, `endImpersonation()`, `getImpersonationContext()`. Cookie = `jose` HS256 JWT `{adminId, targetUserId, targetEmail, exp}`, httpOnly + SameSite=Lax + Secure-in-prod, 30-min TTL. ⚠️ Deviation: signature is `startImpersonation({ admin: AuthUser, targetUserId })` (mirrors `overrideUserPlan`'s pre-verified-admin pattern), not the spec's `(adminId, targetUserId)` — so the FORBIDDEN-when-not-admin self-guard is a pure check, no extra query.
+- ✅ `app/api/admin/users/[id]/impersonate/route.ts` — POST, `requireAdmin` + `impersonate` limiter (5/min) + `admin.impersonation_started` audit.
+- ✅ `app/api/admin/impersonate/end/route.ts` — POST, clears cookie + `admin.impersonation_ended` audit. ⚠️ Deviation: **no `requireAdmin`** — `getUser()` resolves to the (non-admin) target while impersonating, which would dead-lock the exit; the signed httpOnly cookie is the proof, clearing is idempotent.
+
+**Auth integration**
+- ✅ `lib/auth.ts` — new `getSessionUser()` (real identity); `getUser()` returns the impersonated target when an admin holds a valid cookie (honored only if session user IS that admin AND `role='admin'`); `requireAdmin()` authorizes against `getSessionUser()`, so admin powers survive impersonation.
+- ✅ `<ImpersonateBanner>` rendered in both `app/(app)/layout.tsx` and `app/(admin)/layout.tsx` (only when context present; `getImpersonationContext()` passed in).
+
+**Component**
+- ✅ `components/admin/ImpersonateBanner.tsx` — sticky, full-width, `--danger-solid`, `z-impersonate-banner`, "Impersonating <email>" + "Exit impersonation" (POST end → hard reload to `/admin/users/[id]`). Renders `null` with no context.
+- ✅ Wired the **Impersonate** button (built into `UserDetailHeader` this checkpoint) → `UserDetail.handleImpersonate` POSTs start → `window.location.href = "/dashboard"`.
+
+**Read path (beyond the task list, required for "admin sees target's data")**
+- ⚠️ Added 3 admin-select RLS policies (`members_select_admin`, `usage_select_admin`, `projects_select_admin`) in `combined.sql` — completes the pre-existing `*_select_admin` pattern so the impersonator's RLS session can read the target's workspace/usage/projects. **Must be applied live + RLS-re-verified.** Impersonation is read-observational in v1 (no admin write-for-others policies). See DECISIONS.
+- ⚠️ Promoted `jose` (already transitive via `@supabase/ssr`) to a **direct dependency**; added `impersonate` limiter to `lib/ratelimit.ts`; guarded `tests/setup.ts` DOM stubs with `typeof window` (jose realm check needs the `node` test env).
+
+### 2. In plain English (delivered)
+
+An admin opens any user's detail page and clicks **Impersonate**. The server verifies they're an admin, mints a 30-minute signed httpOnly cookie naming the target, audits `admin.impersonation_started`, and the browser hard-reloads. From then on `getUser()` returns the *target*, so the app shell, dashboard, projects, and billing all render the target's data — while a red banner pinned to the top of every page (above all other UI) shows whose account it is, with a one-click Exit. Authorization is unaffected: `requireAdmin()` still sees the real admin, so the admin keeps admin access and the Exit always works (Exit POSTs to the end route — which needs no admin check because the signed cookie is its own proof — clears the cookie, audits `admin.impersonation_ended`, and reloads back to the user's detail page). The cookie is signature- and expiry-verified on every request (forged/expired ⇒ treated as not impersonating), and it's honored only for the admin who minted it. For the target's data to actually be *readable* by the impersonator's own RLS session, three admin-select policies were added to complete the existing admin-read pattern; writes during impersonation stay scoped to the admin and are RLS-blocked for the target (read-observational v1 boundary). **Nothing has been exercised against the live stack, and the 3 RLS policies are NOT yet applied to the live DB** — both are required before the Phase 4 live pass.
+
+### 3. Done-when verification
+
+- ✅ Admin clicks Impersonate → POST sets cookie → redirect → app reloads as target — route + `UserDetail.handleImpersonate` (tested both); live browser deferred
+- ✅ `<ImpersonateBanner>` renders on top with target email, `z-impersonate-banner` — `ImpersonateBanner.test.tsx` (renders email; renders null with no context); visual top-of-everything deferred to live
+- ✅ Admin sees target's data (workspace, projects, subscription) — `getUser()` swap (`auth.test.ts`) + the 3 admin-select policies; **live-only**, and gated on applying the policies
+- ✅ Click Exit → POST end → cookie cleared → redirect to `/admin/users/[id]` — `ImpersonateBanner` Exit calls the end endpoint (tested); redirect target wired
+- ✅ `activity_log` captures start + end with `impersonator_id` set — both routes call `logActivity` with `impersonatorId` (asserted in `admin-impersonate.test.ts`)
+- ✅ Cookie expiry works — `getImpersonationContext` returns null when expired (`impersonation.test.ts`, fake timers); live backdate deferred
+- ✅ Non-admin POST → 403 — `requireAdmin` gate (`admin-impersonate.test.ts`) + `startImpersonation` FORBIDDEN self-guard (`impersonation.test.ts`)
+- ✅ All impersonation tests pass — 4 new test files (lib 10, banner 3, api 7) + auth 13 + header/detail updates
+- ✅ `npm run test:coverage` ≥ 82% — **Stmts 87.72 · Branches 79.74 · Funcs 89.13 · Lines 90.05** (thresholds 82/82/77/82)
+- ✅ `npm run type-check` 0 · `npm run build` 0 (both impersonation routes generated; recharts still code-split)
+- ⚠️ **Full Phase 4 manual verification suite — deferred** to a live session (and gated on applying the 3 RLS policies)
+
+### 4. Test files added/changed
+
+- New: `tests/lib/impersonation.test.ts` (10, node env) · `tests/components/ImpersonateBanner.test.tsx` (3) · `tests/api/admin-impersonate.test.ts` (7)
+- Extended: `tests/lib/auth.test.ts` (7 → 13: `getSessionUser`, impersonation-swap branches, requireAdmin-vs-real-user) · `tests/components/UserDetailHeader.test.tsx` (+2 Impersonate button) · `tests/components/UserDetail.test.tsx` (+1 impersonate POST)
+- Net: 535 → **564 tests** (82 files)
+
+### 5. New DECISIONS.md entries
+
+- Impersonation swaps the app identity (`getUser()`) but keeps admin authorization on the real session user
+- Impersonation is read-observational in v1; completed the admin-select RLS pattern (3 SELECT policies) for the read path
+- Impersonation cookie: jose HS256 JWT, key derived from the service-role secret; ending needs no requireAdmin
+
+### 6. Deferred items
+
+- **Full Phase 4 live/manual verification** → live session. Closes 4.1 + 4.2 + 4.3 deferrals in one pass. **Blocked on first applying the 3 admin-select RLS policies to the live DB.**
+- **Real-phone pass + live invite email + OAuth-invite cookie gap** → carry-over from Phase 3 (Phase 5 / when a domain is wired).
+- **Dedicated `IMPERSONATION_SECRET`** → v2 hardening (v1 reuses the service-role secret).
+
+### 7. Known issues
+
+- **3 new RLS policies unapplied to the live DB** (🔴, see Known issues) — impersonation reads fail until applied; re-verify 14/14 after.
+- **Read-observational impersonation** — writes while impersonating are RLS-blocked by design (no admin write-for-others policies); a write attempt erroring is expected.
+- **`getUser()` now does up to 2 extra reads during impersonation** (cookie verify + role check + `getUserById`) — only when a valid cookie is present; normal sessions pay one cheap cookie read that resolves to null. Fine at v1 scale.
+- **Banner z-index vs toasts** — `--z-impersonate-banner` (90) sits above `--z-toast` (80); a top-positioned toast during impersonation could be partially covered. Cosmetic; impersonation toasts are rare.
+
+### 8. What surprised me
+
+`jose`'s Web Crypto signing path throws `payload must be an instance of Uint8Array` under vitest's **jsdom** environment — jsdom runs in a separate realm, so jose's internal `instanceof Uint8Array` check fails against the module-realm constructor even though the bytes are valid. The fix was a per-file `// @vitest-environment node` directive (the lib is server-only anyway), which then tripped the shared `tests/setup.ts` `window.matchMedia` stub (no `window` in node) — so the setup needed a `typeof window` guard. Both are pure test-environment artifacts; the real server runtime (Node) has neither problem.
 
 ## Checkpoint 4.2 closeout — 2026-06-04
 

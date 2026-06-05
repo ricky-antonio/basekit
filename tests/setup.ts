@@ -3,6 +3,9 @@ import { afterEach, beforeAll, vi } from "vitest"
 import { cleanup } from "@testing-library/react"
 
 beforeAll(() => {
+  // Server-only libs (e.g. lib/impersonation) run under the node environment, which has
+  // no window — guard the DOM stubs so the shared setup works in both environments.
+  if (typeof window === "undefined") return
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({

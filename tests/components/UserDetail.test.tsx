@@ -85,6 +85,28 @@ describe("UserDetail", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No workspace found for this user."))
   })
 
+  it("starts impersonation via the impersonate endpoint when Impersonate is clicked", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => detail })
+    global.fetch = fetchMock as unknown as typeof fetch
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      writable: true,
+      value: { href: "" },
+    })
+
+    render(<UserDetail userId="u1" />)
+    await screen.findByText("Alice Admin")
+
+    await userEvent.click(screen.getByRole("button", { name: "Impersonate" }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/admin/users/u1/impersonate",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    )
+  })
+
   it("shows an error message when the user fetch fails", async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }) as unknown as typeof fetch
 

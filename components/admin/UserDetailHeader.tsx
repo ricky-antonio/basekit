@@ -7,6 +7,8 @@ import type { AdminUserDetail } from "@/lib/admin"
 interface UserDetailHeaderProps {
   detail: AdminUserDetail
   onOverride: () => void
+  onImpersonate: () => void
+  impersonating: boolean
 }
 
 function initialsOf(name: string): string {
@@ -18,7 +20,12 @@ function initialsOf(name: string): string {
     .toUpperCase()
 }
 
-export default function UserDetailHeader({ detail, onOverride }: UserDetailHeaderProps) {
+export default function UserDetailHeader({
+  detail,
+  onOverride,
+  onImpersonate,
+  impersonating,
+}: UserDetailHeaderProps) {
   return (
     <div
       className="flex flex-col gap-4 rounded-xl p-6 sm:flex-row sm:items-center sm:justify-between"
@@ -66,9 +73,17 @@ export default function UserDetailHeader({ detail, onOverride }: UserDetailHeade
         </div>
       </div>
 
-      <div className="shrink-0">
+      <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
         <Button variant="outline" className="min-h-11 w-full sm:w-auto" onClick={onOverride}>
           Override plan
+        </Button>
+        <Button
+          className="min-h-11 w-full sm:w-auto"
+          style={{ background: "var(--danger-solid)", color: "#FFFFFF" }}
+          onClick={onImpersonate}
+          disabled={impersonating}
+        >
+          {impersonating ? "Impersonating…" : "Impersonate"}
         </Button>
       </div>
     </div>

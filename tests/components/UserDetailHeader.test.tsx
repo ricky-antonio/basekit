@@ -26,7 +26,7 @@ function detail(overrides: Partial<AdminUserDetail> = {}): AdminUserDetail {
 
 describe("UserDetailHeader", () => {
   it("renders name, email, plan badge, and status badge", () => {
-    render(<UserDetailHeader detail={detail()} onOverride={vi.fn()} />)
+    render(<UserDetailHeader detail={detail()} onOverride={vi.fn()} onImpersonate={vi.fn()} impersonating={false} />)
     expect(screen.getByText("Alice Admin")).toBeInTheDocument()
     expect(screen.getByText("alice@example.com")).toBeInTheDocument()
     expect(screen.getByText("Pro")).toBeInTheDocument()
@@ -34,21 +34,34 @@ describe("UserDetailHeader", () => {
   })
 
   it("shows an Admin badge only for admin-role users", () => {
-    const { rerender } = render(<UserDetailHeader detail={detail({ role: "user" })} onOverride={vi.fn()} />)
+    const { rerender } = render(<UserDetailHeader detail={detail({ role: "user" })} onOverride={vi.fn()} onImpersonate={vi.fn()} impersonating={false} />)
     expect(screen.queryByText("Admin")).not.toBeInTheDocument()
-    rerender(<UserDetailHeader detail={detail({ role: "admin" })} onOverride={vi.fn()} />)
+    rerender(<UserDetailHeader detail={detail({ role: "admin" })} onOverride={vi.fn()} onImpersonate={vi.fn()} impersonating={false} />)
     expect(screen.getByText("Admin")).toBeInTheDocument()
   })
 
   it("falls back to a Free badge when there is no subscription", () => {
-    render(<UserDetailHeader detail={detail({ subscription: null })} onOverride={vi.fn()} />)
+    render(<UserDetailHeader detail={detail({ subscription: null })} onOverride={vi.fn()} onImpersonate={vi.fn()} impersonating={false} />)
     expect(screen.getByText("Free")).toBeInTheDocument()
   })
 
   it("calls onOverride when the Override plan button is clicked", async () => {
     const onOverride = vi.fn()
-    render(<UserDetailHeader detail={detail()} onOverride={onOverride} />)
+    render(<UserDetailHeader detail={detail()} onOverride={onOverride} onImpersonate={vi.fn()} impersonating={false} />)
     await userEvent.click(screen.getByRole("button", { name: "Override plan" }))
     expect(onOverride).toHaveBeenCalledOnce()
+  })
+
+  it("calls onImpersonate when the Impersonate button is clicked", async () => {
+    const onImpersonate = vi.fn()
+    render(<UserDetailHeader detail={detail()} onOverride={vi.fn()} onImpersonate={onImpersonate} impersonating={false} />)
+    await userEvent.click(screen.getByRole("button", { name: "Impersonate" }))
+    expect(onImpersonate).toHaveBeenCalledOnce()
+  })
+
+  it("shows a pending label and disables the button while impersonating", () => {
+    render(<UserDetailHeader detail={detail()} onOverride={vi.fn()} onImpersonate={vi.fn()} impersonating={true} />)
+    const button = screen.getByRole("button", { name: "Impersonating…" })
+    expect(button).toBeDisabled()
   })
 })

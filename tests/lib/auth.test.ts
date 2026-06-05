@@ -1,10 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { mockSupabase, mockSupabaseAuth, mockSupabaseFrom, resetSupabaseMock } from "@/tests/mocks/supabase"
+import {
+  mockSupabase,
+  mockSupabaseAuth,
+  mockSupabaseFrom,
+  mockSupabaseAdminUser,
+  resetSupabaseMock,
+} from "@/tests/mocks/supabase"
 
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => mockSupabase }))
+const mocks = vi.hoisted(() => ({ getImpersonationContext: vi.fn() }))
 
-// Import after the mock is registered
-const { getUser, requireAuth, requireAdmin } = await import("@/lib/auth")
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => mockSupabase,
+  createServiceClient: () => mockSupabase,
+}))
+vi.mock("@/lib/impersonation", () => ({ getImpersonationContext: mocks.getImpersonationContext }))
+
+// Import after the mocks are registered
+const { getUser, getSessionUser, requireAuth, requireAdmin } = await import("@/lib/auth")
 
 const fakeUser = {
   id: "user-abc-123",
@@ -15,10 +27,33 @@ const fakeUser = {
   created_at: new Date().toISOString(),
 }
 
+const adminUser = { ...fakeUser, id: "admin-1", email: "admin@example.com" }
+
 beforeEach(() => {
   resetSupabaseMock()
   mockSupabaseAuth(null)
-  vi.resetAllMocks()
+  vi.clearAllMocks()
+  mocks.getImpersonationContext.mockResolvedValue(null)
+})
+
+describe("getSessionUser", () => {
+  it("returns the real session user", async () => {
+    mockSupabaseAuth(fakeUser)
+    const user = await getSessionUser()
+    expect(user).toMatchObject({ id: fakeUser.id })
+  })
+
+  it("returns the real session user even while impersonating", async () => {
+    mockSupabaseAuth(adminUser)
+    mocks.getImpersonationContext.mockResolvedValue({
+      adminId: adminUser.id,
+      targetUserId: "target-1",
+      targetEmail: "t@example.com",
+      expiresAt: Date.now() + 1000,
+    })
+    const user = await getSessionUser()
+    expect(user?.id).toBe(adminUser.id)
+  })
 })
 
 describe("getUser", () => {
@@ -32,6 +67,45 @@ describe("getUser", () => {
     mockSupabaseAuth(null)
     const user = await getUser()
     expect(user).toBeNull()
+  })
+
+  it("returns the impersonated target when an admin holds a valid cookie", async () => {
+    mockSupabaseAuth(adminUser)
+    mockSupabaseFrom("profiles", { data: { role: "admin" }, error: null })
+    mockSupabaseAdminUser({ id: "target-1", email: "target@example.com" })
+    mocks.getImpersonationContext.mockResolvedValue({
+      adminId: adminUser.id,
+      targetUserId: "target-1",
+      targetEmail: "target@example.com",
+      expiresAt: Date.now() + 1000,
+    })
+    const user = await getUser()
+    expect(user?.id).toBe("target-1")
+  })
+
+  it("ignores the cookie when the session user is not the admin who minted it", async () => {
+    mockSupabaseAuth(fakeUser)
+    mocks.getImpersonationContext.mockResolvedValue({
+      adminId: "some-other-admin",
+      targetUserId: "target-1",
+      targetEmail: "target@example.com",
+      expiresAt: Date.now() + 1000,
+    })
+    const user = await getUser()
+    expect(user?.id).toBe(fakeUser.id)
+  })
+
+  it("ignores the cookie when the session user is not actually an admin", async () => {
+    mockSupabaseAuth(adminUser)
+    mockSupabaseFrom("profiles", { data: { role: "user" }, error: null })
+    mocks.getImpersonationContext.mockResolvedValue({
+      adminId: adminUser.id,
+      targetUserId: "target-1",
+      targetEmail: "target@example.com",
+      expiresAt: Date.now() + 1000,
+    })
+    const user = await getUser()
+    expect(user?.id).toBe(adminUser.id)
   })
 })
 
@@ -82,6 +156,23 @@ describe("requireAdmin", () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.error.code).toBe("UNAUTHENTICATED")
+    }
+  })
+
+  it("authorizes the real admin (not the target) while impersonating", async () => {
+    mockSupabaseAuth(adminUser)
+    mockSupabaseFrom("profiles", { data: { role: "admin" }, error: null })
+    mocks.getImpersonationContext.mockResolvedValue({
+      adminId: adminUser.id,
+      targetUserId: "target-1",
+      targetEmail: "target@example.com",
+      expiresAt: Date.now() + 1000,
+    })
+    const result = await requireAdmin()
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.id).toBe(adminUser.id)
+      expect(result.data.role).toBe("admin")
     }
   })
 })

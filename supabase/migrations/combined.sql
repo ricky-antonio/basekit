@@ -297,6 +297,9 @@ create policy members_select_same_workspace on workspace_members
     workspace_id in (select get_user_workspace_ids(auth.uid()))
   );
 
+create policy members_select_admin on workspace_members
+  for select using (is_admin(auth.uid()));
+
 create policy members_update_owner_or_admin on workspace_members
   for update using (
     is_workspace_owner_or_admin(workspace_members.workspace_id, auth.uid())
@@ -338,6 +341,9 @@ create policy usage_select_members on usage
     workspace_id in (select get_user_workspace_ids(auth.uid()))
   );
 
+create policy usage_select_admin on usage
+  for select using (is_admin(auth.uid()));
+
 -- projects
 create policy projects_select_members on projects
   for select using (
@@ -358,6 +364,9 @@ create policy projects_delete_owner_or_admin on projects
   for delete using (
     is_workspace_owner_or_admin(projects.workspace_id, auth.uid())
   );
+
+create policy projects_select_admin on projects
+  for select using (is_admin(auth.uid()));
 
 -- activity_log
 create policy activity_select_admin on activity_log
