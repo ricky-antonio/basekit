@@ -44,6 +44,28 @@ describe("RecentActivity", () => {
     expect(screen.getByText("Noah Reyes · free → pro · comped")).toBeInTheDocument()
   })
 
+  it("falls back to the metadata email, then name, then target type for the detail", () => {
+    render(
+      <RecentActivity
+        activities={[
+          row({ id: "e", action: "member.invited", metadata: { email: "invitee@test.com" } }),
+          row({ id: "n", action: "member.joined", metadata: { name: "Acme Corp" } }),
+          row({ id: "t", action: "project.created", targetType: "project", metadata: {} }),
+        ]}
+      />,
+    )
+    expect(screen.getByText("invitee@test.com")).toBeInTheDocument()
+    expect(screen.getByText("Acme Corp")).toBeInTheDocument()
+    expect(screen.getByText("project")).toBeInTheDocument()
+  })
+
+  it("renders no detail line when nothing is resolvable", () => {
+    render(<RecentActivity activities={[row({ targetType: null, metadata: {} })]} />)
+    const rowEl = screen.getByTestId("activity-row")
+    // action label present, but no secondary detail paragraph
+    expect(rowEl.querySelectorAll("p")).toHaveLength(1)
+  })
+
   it("flags impersonated actions", () => {
     render(<RecentActivity activities={[row({ impersonatorId: "admin-9" })]} />)
     expect(screen.getByText("Impersonated")).toBeInTheDocument()

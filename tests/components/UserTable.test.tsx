@@ -4,9 +4,9 @@ import userEvent from "@testing-library/user-event"
 import UserTable from "@/components/admin/UserTable"
 import type { AdminUserList, AdminUserRow } from "@/lib/admin"
 
-const mocks = vi.hoisted(() => ({ push: vi.fn(), params: "" }))
+const mocks = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), params: "" }))
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mocks.push }),
+  useRouter: () => ({ push: mocks.push, replace: mocks.replace }),
   useSearchParams: () => new URLSearchParams(mocks.params),
 }))
 
@@ -79,10 +79,10 @@ describe("UserTable", () => {
       render(<UserTable />)
 
       fireEvent.change(screen.getByLabelText("Search users"), { target: { value: "bob" } })
-      expect(mocks.push).not.toHaveBeenCalled()
+      expect(mocks.replace).not.toHaveBeenCalled()
 
       await vi.advanceTimersByTimeAsync(300)
-      expect(mocks.push).toHaveBeenCalledWith("/admin/users?search=bob")
+      expect(mocks.replace).toHaveBeenCalledWith("/admin/users?search=bob")
     } finally {
       vi.useRealTimers()
     }
@@ -97,7 +97,7 @@ describe("UserTable", () => {
 
       fireEvent.change(screen.getByLabelText("Search users"), { target: { value: "" } })
       await vi.advanceTimersByTimeAsync(300)
-      expect(mocks.push).toHaveBeenCalledWith("/admin/users?")
+      expect(mocks.replace).toHaveBeenCalledWith("/admin/users?")
     } finally {
       vi.useRealTimers()
     }

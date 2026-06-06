@@ -70,8 +70,9 @@ export default function UserTable() {
   }, [queryString])
 
   // Live search: debounce the input into the URL so the table filters as you type and
-  // clearing the field resets. Only pushes when the trimmed input actually differs from
-  // the current URL param, so mount + post-push renders don't loop.
+  // clearing the field resets. Only acts when the trimmed input actually differs from the
+  // current URL param, so mount + post-navigation renders don't loop. Uses replace (not
+  // push) so type-as-you-go doesn't stack a history entry per keystroke-pause.
   useEffect(() => {
     const current = new URLSearchParams(queryString).get("search") ?? ""
     const next = searchInput.trim()
@@ -81,7 +82,7 @@ export default function UserTable() {
       if (next) params.set("search", next)
       else params.delete("search")
       params.delete("page")
-      router.push(`/admin/users?${params.toString()}`)
+      router.replace(`/admin/users?${params.toString()}`)
     }, 300)
     return () => clearTimeout(timer)
   }, [searchInput, queryString, router])

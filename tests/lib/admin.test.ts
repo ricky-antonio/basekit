@@ -106,6 +106,26 @@ describe("listUsers", () => {
     expect(byWorkspace.ok && byWorkspace.data.users.map((u) => u.userId)).toEqual(["owner-b"])
   })
 
+  it("skips a subscription whose workspace is missing", async () => {
+    mockSupabaseFrom("subscriptions", {
+      data: [
+        { workspace_id: "ws-a", plan_name: "pro", status: "active", created_at: "2026-01-02T00:00:00Z", stripe_customer_id: "cus_a" },
+        { workspace_id: "ws-gone", plan_name: "free", status: "active", created_at: "2026-01-01T00:00:00Z", stripe_customer_id: null },
+      ],
+      error: null,
+    })
+    // ws-gone intentionally absent from the workspaces read
+    mockSupabaseFrom("workspaces", {
+      data: [{ id: "ws-a", name: "Acme", slug: "acme", owner_id: "owner-a", created_at: "2026-01-02T00:00:00Z" }],
+      error: null,
+    })
+    mockSupabaseFrom("profiles", { data: [{ id: "owner-a", display_name: "Alice", avatar_url: null, role: "user" }], error: null })
+    mockSupabaseAdminUser({ id: "owner-a", email: "a@test.com", user_metadata: {} })
+    const result = await listUsers({})
+    expect(result.ok && result.data.users.map((u) => u.userId)).toEqual(["owner-a"])
+    expect(result.ok && result.data.total).toBe(1)
+  })
+
   it("returns an empty list when there are no subscriptions", async () => {
     mockSupabaseFrom("subscriptions", { data: [], error: null })
     const result = await listUsers({})
@@ -178,6 +198,22 @@ describe("getUserDetail", () => {
     expect(result.data.subscription).toBeNull()
     expect(result.data.recentActivity).toEqual([])
   })
+
+  it("handles a workspace with no subscription and falls back for name/role", async () => {
+    mockSupabaseFrom("profiles", { data: { id: "u1", display_name: null, avatar_url: null, role: null }, error: null })
+    mockSupabaseAdminUser({ id: "u1", email: "alice@test.com", user_metadata: { display_name: "Meta Alice" } })
+    mockSupabaseFrom("workspaces", { data: { id: "ws-1", name: "Acme", slug: "acme", created_at: "2026-01-01T00:00:00Z" }, error: null })
+    mockSupabaseFrom("subscriptions", { data: null, error: null })
+    mockSupabaseFrom("activity_log", { data: null, error: null })
+    const result = await getUserDetail("u1")
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.workspace?.name).toBe("Acme")
+    expect(result.data.subscription).toBeNull()
+    expect(result.data.recentActivity).toEqual([])
+    expect(result.data.displayName).toBe("Meta Alice") // display_name null → user_metadata name
+    expect(result.data.role).toBe("user") // role null → default
+  })
 })
 
 describe("overrideUserPlan", () => {
@@ -230,5 +266,36 @@ describe("overrideUserPlan", () => {
     if (result.ok) return
     expect(result.error.code).toBe("NOT_FOUND")
     expect(mocks.logActivity).not.toHaveBeenCalled()
+  })
+
+  it("returns INTERNAL_ERROR when the workspace read fails", async () => {
+    mockSupabaseFrom("workspaces", { data: null, error: { message: "boom" } })
+    const result = await overrideUserPlan({ admin: adminUser, userId: "u1", plan: "pro", reason: "x" })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("INTERNAL_ERROR")
+    expect(mocks.logActivity).not.toHaveBeenCalled()
+  })
+
+  it("returns INTERNAL_ERROR when the subscription update fails", async () => {
+    mockSupabaseFrom("workspaces", { data: { id: "ws-1" }, error: null })
+    mockSupabaseFrom("subscriptions", { data: null, error: { message: "boom" } })
+    const result = await overrideUserPlan({ admin: adminUser, userId: "u1", plan: "pro", reason: "x" })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("INTERNAL_ERROR")
+    expect(mocks.logActivity).not.toHaveBeenCalled()
+  })
+
+  it("still succeeds with a null target identity when getUserById throws", async () => {
+    seedOverride()
+    mockSupabase.auth.admin.getUserById.mockRejectedValueOnce(new Error("boom"))
+    const result = await overrideUserPlan({ admin: adminUser, userId: "u1", plan: "pro", reason: "x" })
+    expect(result.ok).toBe(true)
+    expect(mocks.logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ targetEmail: null, targetName: null }),
+      }),
+    )
   })
 })
