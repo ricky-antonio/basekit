@@ -23,9 +23,8 @@ export default function MarketingNav() {
     <header
       className="sticky top-0 z-30 w-full"
       style={{
-        background: "color-mix(in srgb, var(--bg-app) 85%, transparent)",
+        background: "var(--bg-app)",
         borderBottom: "1px solid var(--border-default)",
-        backdropFilter: "saturate(180%) blur(8px)",
       }}
     >
       <nav className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -66,7 +65,7 @@ export default function MarketingNav() {
             onClick={() => setOpen((value) => !value)}
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-md"
             style={{ color: "var(--text-primary)" }}
           >
             {open ? <IconX size={20} aria-hidden="true" /> : <IconMenu2 size={20} aria-hidden="true" />}

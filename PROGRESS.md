@@ -3,27 +3,26 @@
 ---
 
 ## Current phase
-Phase 4 — Admin + Impersonation — **COMPLETE** (built + audited + **live-verified 2026-06-05**).
-All 3 checkpoints built, audited, and exercised end-to-end against the live stack (admin promote,
-search/filters, audited plan override, subscriptions + Stripe links, activity log, impersonation
-swap→target-data→exit with both audit rows, RLS 14/14, mobile incl. real-phone). The 3 new admin-select
-RLS policies are **applied to the live DB**. Found + fixed **5 issues** during the pass (4 admin-UX +
-the rls-verify teardown leak) — all committed, all 4 gates green. **Phase 4 is shippable.**
-**Next: Phase 5 — Landing + Polish + Pre-deploy.** (See "Phase 4 manual verification — 2026-06-05" below.)
+Phase 5 — Landing + Polish + Pre-deploy — **IN PROGRESS** (Checkpoint 5.1 code-complete + audited,
+2026-06-06). Phase 4 is COMPLETE + live-verified (2026-06-05). Coverage thresholds raised to
+**85/85/80/85** at phase start. **Next: Checkpoint 5.2 — App polish** (notifications, empty states,
+past-due banner, welcome tour). (See "Checkpoint 5.1 closeout — 2026-06-06" below.)
 
 ## Current checkpoint
-**Phase 4 fully closed (live-verified 2026-06-05). No active checkpoint — next session begins
-Phase 5.1.** Phase 4 recap: `lib/impersonation.ts` (`jose` HS256-signed httpOnly cookie, 30-min TTL,
-key = SHA-256 of the service-role secret); `lib/auth.ts` splits **effective app identity** (`getUser()`
-returns the impersonated target, built from the signed cookie) from **real identity** (`getSessionUser()`
-+ `requireAdmin()`, so admin powers + Exit survive); `ImpersonateBanner` (sticky full-width danger bar,
-`z-impersonate-banner`) in both layouts + the wired Impersonate button; 2 routes (impersonate w/ 5/min
-limiter + `admin.impersonation_started` audit, end w/ cookie-as-proof + `admin.impersonation_ended`
-audit); 3 admin-select RLS policies (`workspace_members`/`usage`/`projects`) for the read path —
-impersonation is read-observational in v1. (See "Checkpoint 4.3 closeout — 2026-06-04" + the 4.3 audit
-§9 + "Phase 4 manual verification — 2026-06-05" below.)
+**Phase 5.1 — Landing + pricing pages: CODE-COMPLETE + AUDITED (2026-06-06), live visual/Lighthouse
+verification deferred.** Built the public marketing site under `app/(marketing)/` (shared
+`layout.tsx` = `MarketingNav` + `MarketingFooter` + skip link): the `/` landing with all 8 sections
+(nav → hero → tech strip → 3×2 feature grid → **dark** pricing band w/ ambient teal glow →
+testimonials → CTA strip → footer) and the standalone `/pricing` page (cards + grouped comparison
+table + 8-Q FAQ). `PricingTable` extended with `variant="dark"` (fixed dark surfaces, annual default)
++ `ctaHref` (marketing CTAs → `/signup`, no Checkout POST) — app billing behavior unchanged. 7 new
+marketing components (`Wordmark`, `ThemeToggle`, `MarketingNav`, `Hero`, `FeatureGrid`, `Testimonials`,
+`MarketingFooter`). Placeholder `app/page.tsx` deleted. Audit found **0 🔴 / 3 🟠** — all fixed
+(removed nav backdrop-blur per design.md, bumped nav tap targets to 44px, wrote 2 DECISIONS entries).
+**Next session: Checkpoint 5.2.** (See "Checkpoint 5.1 closeout — 2026-06-06" below.)
 
 ## Completed
+- [2026-06-06] Phase 5.1 — Landing + pricing pages: `app/(marketing)/` route group (shared nav/footer layout + skip link), `/` landing (8 sections incl. fixed-dark pricing band with the one allowed radial teal glow), standalone `/pricing` (PricingTable + grouped comparison table + 8-question FAQ); `PricingTable` extended with `variant="dark"` + `ctaHref` (reused across app billing + both marketing surfaces); 7 marketing components; deleted placeholder `app/page.tsx`; coverage thresholds → 85/85/80/85. Post-build audit: 0 🔴, 3 🟠 all fixed (nav backdrop-blur removed, 44px tap targets, DECISIONS entries). 591 tests; coverage 88.52/81.34/88.83/90.65. Code-complete + committed; live visual/Lighthouse/mobile verification deferred to a paired pass. (See "Checkpoint 5.1 closeout — 2026-06-06" below.)
 - [2026-06-05] Phase 4 manual verification — full admin + impersonation suite verified live (paired session): admin-only auth boundary (non-admin redirect + toast, role-gated Topbar Admin link), user search/plan/status filters, audited plan override (DB + `activity_log`), subscriptions + Stripe deep links, activity-log filter + pagination, **impersonation end-to-end** (swap → target's real data → comped plan on target's billing → Exit → both `admin.impersonation_*` audit rows w/ `impersonator_id`), RLS **14/14**, mobile (DevTools + real-phone). Applied the 3 admin-select RLS policies live. **Found + fixed 5 issues**: debounced live user-search (was submit-only, empty didn't reset), search now matches workspace name, plan-override audit row now names the target user, `/settings/billing` now in the settings sub-nav, and `rls-verify.mjs` teardown no longer leaks fixtures. Seeded a realistic 16-workspace demo set (`scripts/seed-demo.mjs`). All committed; 567 tests; coverage 87.82/80.04/89.22/90.12. (See "Phase 4 manual verification — 2026-06-05" below.)
 - [2026-06-04] Phase 4.3 — Impersonation end-to-end: `lib/impersonation.ts` (`jose` HS256-signed httpOnly cookie, 30-min TTL, key=SHA-256 of the service-role secret); `lib/auth.ts` split into effective app identity (`getUser()` returns the impersonated target) vs real identity (`getSessionUser()` + `requireAdmin()` keep admin powers); `ImpersonateBanner` in both layouts + the wired Impersonate button on user detail; 2 routes (`POST /api/admin/users/[id]/impersonate` w/ `impersonate` 5/min limiter + audit, `POST /api/admin/impersonate/end` cookie-as-proof + audit); 3 new admin-select RLS policies (`workspace_members`/`usage`/`projects`) for the read path; `jose` promoted to a direct dep. 564 tests; coverage 87.72/79.74/89.13/90.05. Code-complete + committed; audit post-commit; live verification deferred. (See "Checkpoint 4.3 closeout — 2026-06-04" below.)
 - [2026-06-04] Phase 4.2 — Admin pages + components: full navigable admin UI (overview w/ metric cards + dynamic recharts chart + plan breakdown + recent activity; users table w/ URL search/filter/pagination; user detail + plan-override dialog; subscriptions w/ Stripe deep links; activity log) consuming the 4.1 routes via client screen components; `AdminNav` shell; role-gated Admin item in the Topbar user menu. Added `GET /api/admin/activity` + `stripeCustomerId` on `AdminUserRow`; installed `recharts` (dynamically imported). 535 tests; coverage 87.82/79.64/89.04/90.27. Code-complete + committed; audit post-commit; live verification deferred. (See "Checkpoint 4.2 closeout — 2026-06-04" below.)
@@ -42,19 +41,24 @@ impersonation is read-observational in v1. (See "Checkpoint 4.3 closeout — 202
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- **Phase 4 live verification complete (2026-06-05) — Phase 4 is shippable.** The 3 admin-select RLS
-  policies are applied to the live DB; `scripts/rls-verify.mjs` stays **14/14**. The 5 live-found issues
-  are fixed + committed (see Completed + the "Phase 4 manual verification — 2026-06-05" section below).
-- **Impersonation security edges verified via unit tests, not driven live** (acceptable — awkward to
-  exercise by hand): non-admin POST → 403 (`tests/api/admin-impersonate.test.ts`), cookie-expiry revert
-  (`tests/lib/impersonation.test.ts`), 5/min rate-limit (`lib/ratelimit.ts` config). Drive in a browser
-  only if belt-and-suspenders is wanted.
-- **Carry-over deferrals** (non-blocking, batch into Phase 5 / when a domain is wired):
+- **Phase 5.1 code-complete + audited (2026-06-06); live visual/Lighthouse/mobile verification deferred.**
+  The marketing site builds clean and unit tests pass, but the 5.1 "Done when" Lighthouse targets
+  (≥90 Perf / ≥95 A11y / ≥95 BP / ≥95 SEO on `/`) and the "all 8 sections render in light/dark,
+  mobile/desktop" check need a live browser — deferred to a paired pass (same pattern as prior phases).
+- **5.1 audit 🟡 deferred to Checkpoint 5.3** (the explicit a11y/perf/SEO audit checkpoint):
+  1. Mobile nav drawer has no Escape-to-close / focus trap (it's a disclosure; closes on link-click).
+  2. Sub-44px tap targets remain **codebase-wide** (shadcn Button default + existing icon buttons);
+     the marketing nav hamburger + toggles were bumped to 44px in 5.1, the systematic pass is 5.3.
+  3. Idle pricing-toggle label low contrast (`#666` on dark) — matches the pre-existing `--text-muted`.
+  4. >3 font weights on the landing (design.md soft "don't") — tighten in the 5.3 visual polish if wanted.
+- **Phase 4 — shippable + live-verified (2026-06-05).** 3 admin-select RLS policies applied to the live
+  DB; `scripts/rls-verify.mjs` stays **14/14**. Impersonation security edges unit-tested, not driven live.
+- **Carry-over deferrals** (non-blocking, batch into Phase 5.2/5.3 or when a domain is wired):
   1. **Live invite email** — gated on a **verified Resend domain** (standing 3.1 issue).
-  2. **OAuth-invite cookie gap** (audit 🟡) — `/signup?invite=` + "Sign up with Google" doesn't carry
-     the `bk_invite` cookie; email-signup + existing-account paths work. Documented v1 defer.
-- **Next:** **Phase 5 — Landing + Polish + Pre-deploy** (raise `vitest.config.ts` coverage thresholds to
-  **85/85/80/85** per testing.md at phase start).
+  2. **OAuth-invite cookie gap** — `/signup?invite=` + "Sign up with Google" doesn't carry the
+     `bk_invite` cookie; email-signup + existing-account paths work. Documented v1 defer.
+- **Next:** **Checkpoint 5.2 — App polish** (notification preferences + migration, empty-state CTAs,
+  past-due banner, welcome tour, notification-pref checks wired into `lib/email.ts`).
 
 ## Phase 2 — entry notes (read before Checkpoint 2.1)
 Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-ready, no blockers**: `subscriptions` has all Stripe columns + `updated_at` trigger + `unique(workspace_id)`/`unique(stripe_customer_id)`; `usage` has `unique(workspace_id, resource)` + `count >= 0` with `increment_usage` (upsert) / `decrement_usage` (clamps at 0); `projects` RLS = member insert/select/update + owner/admin-only delete; `stripe_events` = `id`/`type`/`processed_at` (no RLS); `service_role` grants fixed; `usage_select_members` exists so enforcement reads don't fail open. Watch-items:
@@ -125,6 +129,66 @@ After the scaffold installed, three known issues were addressed in the same Clau
 - **postcss XSS advisory:** accepted, not fixed (see Known issues + DECISIONS.md).
 
 Last known-good build: `npm run build` → clean (zero TS errors, zero lint warnings, 5 routes generated).
+
+---
+
+## Checkpoint 5.1 closeout — 2026-06-06
+
+### 1. Planned vs delivered
+- ✅ `/` landing with all 8 sections (Nav, Hero, Tech strip, Features grid, Pricing, Testimonials, CTA strip, Footer)
+- ✅ `/pricing` standalone page with full feature comparison + FAQ (8 questions)
+- ✅ Marketing components: `MarketingNav`, `Hero`, `FeatureGrid`, `Testimonials`, `MarketingFooter` (+ `Wordmark`, `ThemeToggle` shared)
+- ✅ Extended `<PricingTable variant="dark">` for the pricing section — **plus** a decoupled `ctaHref` prop (deviation, see below)
+- ✅ Theme toggle works on marketing pages (nav + footer)
+- ⚠️ **Lighthouse ≥90/95/95/95 on `/`** — NOT measured (needs a live browser; deferred)
+- ⚠️ **"All 8 sections render in light/dark, mobile/desktop"** — NOT visually verified (deferred to a live pass)
+
+### 2. In plain English (delivered)
+The public marketing site is built and builds clean. Visitors hit a polished `/` with the eight
+sections in order — sticky nav (hamburger drawer on mobile), hero with two CTAs + social proof,
+a tech-name strip, a six-cell feature grid, an always-dark pricing band with the one allowed
+radial teal glow, three role-labelled testimonials (no fabricated names), a CTA strip, and a
+three-column footer with a theme toggle. `/pricing` reuses the same cards plus a grouped
+comparison table and an 8-question FAQ. The one notable deviation from the plan: rather than
+coupling "links to signup" to the dark variant, I split styling (`variant`) from CTA target
+(`ctaHref`) so the light/theme-reactive `/pricing` page can also route to `/signup` — the app
+billing page (no `ctaHref`) keeps its Stripe Checkout behavior unchanged. What's NOT done is the
+*visual* sign-off: Lighthouse scores and the light/dark + mobile/desktop render check need a live
+browser and are deferred, exactly as prior checkpoints deferred their live passes.
+
+### 3. Done-when verification
+- ✅ All 8 landing sections present in source + build (render-in-both-modes **unverified** — deferred)
+- ✅ Pricing monthly/annual toggle updates all three cards (unit-tested: `$29`↔`$23`, annual subline)
+- ✅ `/pricing` renders comparison table + FAQ (static route, build ✅; unit-untested per page convention)
+- ⚠️ Lighthouse `/` ≥90/95/95/95 — **not measured** (deferred to live pass)
+- ✅ All marketing component tests pass (5 new files + 5 new PricingTable cases)
+- ✅ `npm run test:coverage` **88.52 / 81.34 / 88.83 / 90.65** (≥ 85/80/85/85)
+- ✅ `npm run build` zero errors (`/` static 3.95 kB, `/pricing` static 4.48 kB)
+
+### 4. Test files added/changed
+- `tests/components/MarketingNav.test.tsx` (new, 3)
+- `tests/components/Hero.test.tsx` (new, 4)
+- `tests/components/FeatureGrid.test.tsx` (new, 2)
+- `tests/components/Testimonials.test.tsx` (new, 2)
+- `tests/components/MarketingFooter.test.tsx` (new, 2)
+- `tests/components/PricingTable.test.tsx` (extended +5: dark surfaces, annual default, MOST POPULAR, ctaHref signup links)
+
+### 5. New DECISIONS.md entries
+- `PricingTable` reused across app + marketing via orthogonal `variant` (visual) + `ctaHref` (CTA target) props.
+- Public marketing site lives in an `app/(marketing)` route group with a shared nav/footer layout; the landing pricing band is theme-independent dark (the one allowed radial gradient).
+
+### 6. Deferred items
+- **Live visual + Lighthouse + mobile render verification** → live paired pass (Lighthouse targets are part of 5.1's Done-when but require a browser).
+- **Mobile nav drawer Escape-to-close + focus trap** → Checkpoint 5.3 (a11y audit explicitly covers it).
+- **Systematic 44px tap-target pass** (codebase-wide shadcn Button + icon buttons) → Checkpoint 5.3 (marketing nav controls fixed now).
+- **Idle pricing-toggle contrast + >3 font weights** → Checkpoint 5.3 visual/contrast audit.
+
+### 7. Known issues
+- First-load JS for `/` is 316 kB **uncompressed** (in line with other routes; the shared baseline is 223 kB from Sentry/Supabase). The 200 KB **gzipped** budget is a 5.3 perf-audit item, not yet measured gzipped.
+- The `/admin` `PageNotFoundError` seen mid-session was stale `.next` cache from building right after the dev server; a clean `rm -rf .next` build is green — not a real issue.
+
+### 8. What surprised me
+Next's `.next/types` left a dangling type reference to the deleted `app/page.tsx` that failed `tsc` until the stale generated file was removed — a reminder that deleting a route needs a `.next` refresh before type-check trusts the result.
 
 ---
 

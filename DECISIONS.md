@@ -689,3 +689,18 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 - New `IMPERSONATION_SECRET` env var — extra setup/config surface for marginal benefit at v1, given the cookie is only honored for the matching admin session.
 **Test note:** `jose`'s Web Crypto signing checks `instanceof Uint8Array` against the module realm, which jsdom's separate realm breaks — so `tests/lib/impersonation.test.ts` runs under the `node` environment, and `tests/setup.ts` guards its DOM stubs with `typeof window`.
 **Date:** 2026-06-04
+
+## PricingTable is reused across the app billing page and the marketing site via `variant` + `ctaHref`
+**Decision:** The single `components/billing/PricingTable.tsx` now serves three surfaces from two orthogonal props. `variant` ("light" default | "dark") controls visuals only — the "dark" mode uses fixed hex surfaces (not the theme-reactive CSS variables) and defaults the billing interval to annual. `ctaHref` controls CTA behavior — when set, every plan CTA becomes a `<Link>` to that href (the marketing site → `/signup`); when omitted, CTAs keep the existing Stripe Checkout flow (the app billing page). App billing renders `<PricingTable .../>` (light, checkout); the landing dark section renders `variant="dark" ctaHref="/signup"`; the `/pricing` page renders `ctaHref="/signup"` (light/theme-reactive).
+**Why:** The marketing pricing must (a) match the dark "Pricing" section of the brand brief and (b) never POST to `/api/billing/checkout` (the visitor is unauthenticated — it would 401, and even authed it would 409 for a paid user). Decoupling *styling* (`variant`) from *CTA target* (`ctaHref`) lets the light/theme-reactive `/pricing` page and the always-dark landing section both route to signup without duplicating the whole component or coupling "looks dark" to "links to signup."
+**Alternatives rejected:**
+- A separate `MarketingPricingTable` — duplicates the plan data, toggle, and card layout; drifts from the app version over time.
+- Coupling signup-CTA behavior to `variant="dark"` — blocks a light-themed `/pricing` page that still needs signup CTAs (the actual case).
+**Date:** 2026-06-06
+
+---
+
+## Public marketing site lives in an `app/(marketing)` route group with a shared nav/footer layout; the landing pricing band is theme-independent dark
+**Decision:** The landing (`/`) and `/pricing` live under `app/(marketing)/` with a shared `layout.tsx` that renders `MarketingNav` + `MarketingFooter` + a skip-to-content link, so both pages share the chrome. The placeholder `app/page.tsx` was deleted (it collided with `app/(marketing)/page.tsx` at `/`). The landing's Section 5 pricing band is rendered as a **fixed-dark** region (hardcoded `#0A0A0A` + the one allowed radial teal glow) regardless of the active theme; every other marketing section is theme-reactive via the existing CSS-variable tokens.
+**Why:** A route group gives the marketing pages their own layout without affecting URLs or leaking the app shell (sidebar/topbar) onto public pages. The brand brief specifies the pricing section is *always* dark with an ambient teal glow — making just that band theme-independent (rather than the whole page) keeps the rest of the site responsive to the user's light/dark preference while honoring the brief. The radial glow is the single documented exception to design.md's "no gradients" rule.
+**Date:** 2026-06-06

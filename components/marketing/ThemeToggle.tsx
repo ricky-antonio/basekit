@@ -21,7 +21,7 @@ export default function ThemeToggle({ className }: { className?: string }) {
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       className={cn(
-        "inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors",
+        "inline-flex h-11 w-11 items-center justify-center rounded-md transition-colors",
         className,
       )}
       style={{ color: "var(--text-secondary)" }}
