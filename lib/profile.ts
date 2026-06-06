@@ -30,7 +30,7 @@ export async function getProfile(userId: string): Promise<ApiResult<Profile>> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, avatar_url, role, updated_at")
+    .select("id, display_name, avatar_url, role, notification_preferences, updated_at")
     .eq("id", userId)
     .single()
 
@@ -54,7 +54,7 @@ export async function updateProfile(
     .from("profiles")
     .update({ display_name: displayName })
     .eq("id", userId)
-    .select("id, display_name, avatar_url, role, updated_at")
+    .select("id, display_name, avatar_url, role, notification_preferences, updated_at")
     .single()
 
   if (error || !data) {

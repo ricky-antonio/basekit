@@ -5,6 +5,7 @@ import { getWorkspaceSubscription, getActivePlan } from "@/lib/billing"
 import { getUsage } from "@/lib/usage"
 import { PLANS } from "@/lib/plans"
 import PageHeader from "@/components/shared/PageHeader"
+import { Button } from "@/components/ui/button"
 import BillingCard from "@/components/billing/BillingCard"
 import UsageBar from "@/components/billing/UsageBar"
 import PricingTable from "@/components/billing/PricingTable"
@@ -57,6 +58,25 @@ export default async function BillingSettingsPage({
 
       <PageHeader title="Billing" subtitle="Manage your subscription and payment details." />
 
+      {activePlan === "free" && !isPastDue && (
+        <div
+          className="mb-6 flex flex-col gap-3 rounded-xl px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+          style={{ background: "var(--brand-bg-soft)", border: "1px solid var(--brand-border-soft)" }}
+        >
+          <div>
+            <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+              You&apos;re on the Free plan
+            </p>
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              Upgrade to Pro for unlimited projects and up to 10 members.
+            </p>
+          </div>
+          <Button asChild className="shrink-0">
+            <a href="#plans">View plans</a>
+          </Button>
+        </div>
+      )}
+
       {isPastDue && (
         <div
           role="alert"
@@ -88,7 +108,7 @@ export default async function BillingSettingsPage({
           stripeCustomerId={subscription?.stripe_customer_id ?? null}
         />
 
-        <div className="pt-2">
+        <div id="plans" className="scroll-mt-20 pt-2">
           <h2 className="text-base font-semibold mb-6" style={{ color: "var(--text-primary)" }}>
             Plans
           </h2>

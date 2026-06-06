@@ -1,6 +1,7 @@
 import { createElement, type ReactElement } from "react"
 import * as Sentry from "@sentry/nextjs"
 import { resend } from "@/lib/resend"
+import { shouldSendNotification } from "@/lib/notifications"
 import type { ApiResult } from "@/lib/types"
 import WelcomeEmail from "@/components/email/WelcomeEmail"
 import VerifyEmailEmail from "@/components/email/VerifyEmailEmail"
@@ -93,14 +94,19 @@ export interface SendPaymentFailedEmailParams {
   workspaceName: string
   portalUrl?: string
   amountDue?: string | null
+  recipientUserId?: string
 }
 
-export function sendPaymentFailedEmail({
+export async function sendPaymentFailedEmail({
   to,
   workspaceName,
   portalUrl,
   amountDue,
-}: SendPaymentFailedEmailParams) {
+  recipientUserId,
+}: SendPaymentFailedEmailParams): Promise<SendEmailResult> {
+  if (recipientUserId && !(await shouldSendNotification(recipientUserId, "payment_failed"))) {
+    return { ok: true, data: { id: null } }
+  }
   return sendEmail({
     to,
     subject: "Your basekit payment failed — action needed",
@@ -117,14 +123,19 @@ export interface SendTrialEndingEmailParams {
   workspaceName: string
   portalUrl?: string
   trialEndDate?: string | null
+  recipientUserId?: string
 }
 
-export function sendTrialEndingEmail({
+export async function sendTrialEndingEmail({
   to,
   workspaceName,
   portalUrl,
   trialEndDate,
-}: SendTrialEndingEmailParams) {
+  recipientUserId,
+}: SendTrialEndingEmailParams): Promise<SendEmailResult> {
+  if (recipientUserId && !(await shouldSendNotification(recipientUserId, "trial_ending"))) {
+    return { ok: true, data: { id: null } }
+  }
   return sendEmail({
     to,
     subject: "Your basekit Pro trial ends in 3 days",

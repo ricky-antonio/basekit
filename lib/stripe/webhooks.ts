@@ -170,6 +170,7 @@ async function handleTrialWillEnd(supabase: ServiceClient, raw: unknown): Promis
     workspaceName: contact.data.workspaceName,
     trialEndDate: formatDate(toIso(subscription.trial_end)),
     portalUrl: BILLING_URL,
+    recipientUserId: contact.data.ownerId,
   })
 }
 
@@ -193,6 +194,7 @@ async function handleInvoicePaymentFailed(supabase: ServiceClient, raw: unknown)
     to: contact.data.email,
     workspaceName: contact.data.workspaceName,
     portalUrl: BILLING_URL,
+    recipientUserId: contact.data.ownerId,
   })
 }
 

@@ -76,6 +76,13 @@ export default function ActivityLog() {
             <Skeleton key={i} className="h-8 w-full" />
           ))}
         </div>
+      ) : data.activities.length === 0 ? (
+        <p
+          className="rounded-xl p-8 text-center text-sm"
+          style={{ border: "1px dashed var(--border-default)", color: "var(--text-secondary)" }}
+        >
+          No activity in this range.
+        </p>
       ) : (
         <RecentActivity activities={data.activities} title="Activity log" />
       )}

@@ -60,7 +60,7 @@ describe("GET /callback", () => {
     vi.mocked(mockSupabase.auth.verifyOtp).mockReset()
   })
 
-  it("redirects to /dashboard on first sign-in", async () => {
+  it("redirects to /dashboard?welcome=true on first sign-in", async () => {
     vi.mocked(mockSupabase.auth.exchangeCodeForSession).mockResolvedValue({
       data: { user: fakeUser as User, session: null },
       error: null,
@@ -71,7 +71,7 @@ describe("GET /callback", () => {
     const response = await GET(makeRequest({ code: "test-code" }))
 
     expect(response.status).toBe(307)
-    expect(response.headers.get("location")).toBe(`${BASE_URL}/dashboard`)
+    expect(response.headers.get("location")).toBe(`${BASE_URL}/dashboard?welcome=true`)
   })
 
   it("calls bootstrapWorkspace on first sign-in", async () => {
@@ -178,7 +178,7 @@ describe("GET /callback", () => {
     expect(mockSupabase.auth.verifyOtp).toHaveBeenCalledWith({ type: "signup", token_hash: "hash-123" })
     expect(mockSupabase.auth.exchangeCodeForSession).not.toHaveBeenCalled()
     expect(mocks.bootstrapWorkspace).toHaveBeenCalledWith("user-1", "user@example.com")
-    expect(response.headers.get("location")).toBe(`${BASE_URL}/dashboard`)
+    expect(response.headers.get("location")).toBe(`${BASE_URL}/dashboard?welcome=true`)
   })
 
   it("sends a recovery token_hash to /reset-password without bootstrapping", async () => {
@@ -237,7 +237,7 @@ describe("GET /callback", () => {
 
     expect(mocks.cookieDelete).toHaveBeenCalledWith("bk_invite")
     expect(mocks.bootstrapWorkspace).toHaveBeenCalledWith("user-1", "user@example.com")
-    expect(response.headers.get("location")).toBe(`${BASE_URL}/dashboard`)
+    expect(response.headers.get("location")).toBe(`${BASE_URL}/dashboard?welcome=true`)
   })
 
   it("redirects to /login?error=workspace_failed if bootstrap fails", async () => {

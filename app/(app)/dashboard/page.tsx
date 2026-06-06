@@ -9,6 +9,7 @@ import { getProfile, deriveDisplayName } from "@/lib/profile"
 import { PLANS } from "@/lib/plans"
 import PageHeader from "@/components/shared/PageHeader"
 import EmptyState from "@/components/shared/EmptyState"
+import WelcomeTour from "@/components/dashboard/WelcomeTour"
 import AdminRequiredToast from "./AdminRequiredToast"
 import { Badge } from "@/components/ui/badge"
 import { IconFolder } from "@tabler/icons-react"
@@ -18,7 +19,7 @@ export const metadata = { title: "Dashboard — basekit" }
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>
+  searchParams: Promise<{ error?: string; welcome?: string }>
 }) {
   const params = await searchParams
 
@@ -56,6 +57,8 @@ export default async function DashboardPage({
         title={`Hello, ${displayName}`}
         subtitle={`Welcome back to ${workspace.name}`}
       />
+
+      {params.welcome === "true" && <WelcomeTour />}
 
       {/* Workspace overview card */}
       <div

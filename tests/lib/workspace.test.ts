@@ -173,6 +173,7 @@ describe("getWorkspaceOwnerContact", () => {
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.data).toEqual({
+        ownerId: fakeUser.id,
         email: "owner@example.com",
         ownerName: "Ada",
         workspaceName: "Acme",

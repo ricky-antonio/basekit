@@ -107,6 +107,7 @@ export type Database = {
           avatar_url: string | null
           display_name: string | null
           id: string
+          notification_preferences: Json
           role: string
           updated_at: string
         }
@@ -114,6 +115,7 @@ export type Database = {
           avatar_url?: string | null
           display_name?: string | null
           id: string
+          notification_preferences?: Json
           role?: string
           updated_at?: string
         }
@@ -121,6 +123,7 @@ export type Database = {
           avatar_url?: string | null
           display_name?: string | null
           id?: string
+          notification_preferences?: Json
           role?: string
           updated_at?: string
         }

@@ -6,13 +6,15 @@ import { requireAuth } from "@/lib/auth"
 import { getWorkspace } from "@/lib/workspace"
 import { updateProfile, uploadAvatar, deleteAccount } from "@/lib/profile"
 import { updateWorkspace } from "@/lib/workspace-settings"
+import { updateNotificationPreferences } from "@/lib/notifications"
 import { updateProfileSchema } from "@/lib/validation/profile"
 import { updateWorkspaceSchema } from "@/lib/validation/workspace"
 import { changePasswordSchema } from "@/lib/validation/auth"
+import { notificationPreferencesSchema } from "@/lib/validation/notifications"
 import { checkRateLimit } from "@/lib/ratelimit"
 import { createClient } from "@/lib/supabase/server"
 import { logActivity } from "@/lib/activity"
-import type { ApiResult } from "@/lib/types"
+import type { ApiResult, NotificationPreferences } from "@/lib/types"
 
 function zodFieldErrors(
   flatten: { fieldErrors: Record<string, string[] | undefined> },
@@ -52,6 +54,30 @@ export async function updateProfileAction(
 
   revalidatePath("/", "layout")
   return { ok: true, data: undefined }
+}
+
+export async function updateNotificationPreferencesAction(
+  prefs: unknown,
+): Promise<ApiResult<NotificationPreferences>> {
+  const authResult = await requireAuth()
+  if (!authResult.ok) return { ok: false, error: authResult.error }
+
+  const rl = await checkRateLimit("settingsWrite", authResult.data.id)
+  if (!rl.success) return { ok: false, error: rl.error }
+
+  const parsed = notificationPreferencesSchema.safeParse(prefs)
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: {
+        error: "Invalid input.",
+        code: "VALIDATION_ERROR",
+        fieldErrors: zodFieldErrors(parsed.error.flatten()),
+      },
+    }
+  }
+
+  return updateNotificationPreferences(authResult.data.id, parsed.data)
 }
 
 export async function uploadAvatarAction(

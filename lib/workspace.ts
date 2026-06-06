@@ -69,6 +69,7 @@ export async function getWorkspace(user: User): Promise<ApiResult<Workspace>> {
 }
 
 export interface WorkspaceOwnerContact {
+  ownerId: string
   email: string
   ownerName: string | null
   workspaceName: string
@@ -111,6 +112,7 @@ export async function getWorkspaceOwnerContact(
   return {
     ok: true,
     data: {
+      ownerId: workspace.owner_id,
       email,
       ownerName: profile?.display_name ?? null,
       workspaceName: workspace.name,

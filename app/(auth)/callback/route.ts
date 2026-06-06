@@ -86,6 +86,8 @@ export async function GET(request: NextRequest) {
     if (!bootstrapResult.ok) {
       return NextResponse.redirect(new URL("/login?error=workspace_failed", request.url))
     }
+    // Brand-new account: surface the welcome tour on the first dashboard visit.
+    return NextResponse.redirect(new URL("/dashboard?welcome=true", request.url))
   }
 
   return NextResponse.redirect(new URL(next, request.url))

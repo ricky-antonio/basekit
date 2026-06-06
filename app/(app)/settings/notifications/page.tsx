@@ -1,22 +1,22 @@
+import { redirect } from "next/navigation"
+import { requireAuth } from "@/lib/auth"
+import { getNotificationPreferences, DEFAULT_NOTIFICATION_PREFERENCES } from "@/lib/notifications"
 import PageHeader from "@/components/shared/PageHeader"
+import NotificationsForm from "./NotificationsForm"
 
 export const metadata = { title: "Notification Settings — basekit" }
 
-export default function NotificationsSettingsPage() {
+export default async function NotificationsSettingsPage() {
+  const authResult = await requireAuth()
+  if (!authResult.ok) redirect("/login")
+
+  const prefsResult = await getNotificationPreferences(authResult.data.id)
+  const preferences = prefsResult.ok ? prefsResult.data : DEFAULT_NOTIFICATION_PREFERENCES
+
   return (
     <div>
-      <PageHeader
-        title="Notifications"
-        subtitle="Manage your notification preferences."
-      />
-      <div
-        className="rounded-xl p-6"
-        style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
-      >
-        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          Notification preferences are coming soon. Check back in a later update.
-        </p>
-      </div>
+      <PageHeader title="Notifications" subtitle="Choose which emails basekit sends you." />
+      <NotificationsForm initialPreferences={preferences} />
     </div>
   )
 }

@@ -19,12 +19,16 @@ $$;
 
 -- 01 profiles table
 create table if not exists profiles (
-  id           uuid        primary key references auth.users(id) on delete cascade,
-  display_name text,
-  avatar_url   text,
-  role         text        not null default 'user' check (role in ('user', 'admin')),
-  updated_at   timestamptz not null default now()
+  id                       uuid        primary key references auth.users(id) on delete cascade,
+  display_name             text,
+  avatar_url               text,
+  role                     text        not null default 'user' check (role in ('user', 'admin')),
+  notification_preferences jsonb       not null default '{}'::jsonb,
+  updated_at               timestamptz not null default now()
 );
+
+-- Idempotent for DBs created before notification preferences existed.
+alter table profiles add column if not exists notification_preferences jsonb not null default '{}'::jsonb;
 
 create index if not exists profiles_role_idx on profiles (role);
 
@@ -391,7 +395,7 @@ grant execute on all functions in schema public to service_role;
 -- the user-mutable columns. Authenticated users cannot change their own role this way.
 -- Admin role changes must go through a service-role server action.
 revoke update on profiles from authenticated;
-grant update (display_name, avatar_url) on profiles to authenticated;
+grant update (display_name, avatar_url, notification_preferences) on profiles to authenticated;
 
 -- ============================================================
 -- STORAGE: avatars bucket + policies

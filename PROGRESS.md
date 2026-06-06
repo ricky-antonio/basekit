@@ -3,25 +3,27 @@
 ---
 
 ## Current phase
-Phase 5 — Landing + Polish + Pre-deploy — **IN PROGRESS** (Checkpoint 5.1 code-complete + audited,
-2026-06-06). Phase 4 is COMPLETE + live-verified (2026-06-05). Coverage thresholds raised to
-**85/85/80/85** at phase start. **Next: Checkpoint 5.2 — App polish** (notifications, empty states,
-past-due banner, welcome tour). (See "Checkpoint 5.1 closeout — 2026-06-06" below.)
+Phase 5 — Landing + Polish + Pre-deploy — **IN PROGRESS** (Checkpoint 5.2 code-complete,
+2026-06-06; committed before the session audit per the commit-before-audit workflow — audit + any
+fixes land as a follow-up commit). Phase 4 is COMPLETE + live-verified (2026-06-05). Coverage
+thresholds **85/85/80/85**. **Next: Checkpoint 5.3 — Audits + production deploy.**
+(See "Checkpoint 5.2 closeout — 2026-06-06" below.)
 
 ## Current checkpoint
-**Phase 5.1 — Landing + pricing pages: CODE-COMPLETE + AUDITED (2026-06-06), live visual/Lighthouse
-verification deferred.** Built the public marketing site under `app/(marketing)/` (shared
-`layout.tsx` = `MarketingNav` + `MarketingFooter` + skip link): the `/` landing with all 8 sections
-(nav → hero → tech strip → 3×2 feature grid → **dark** pricing band w/ ambient teal glow →
-testimonials → CTA strip → footer) and the standalone `/pricing` page (cards + grouped comparison
-table + 8-Q FAQ). `PricingTable` extended with `variant="dark"` (fixed dark surfaces, annual default)
-+ `ctaHref` (marketing CTAs → `/signup`, no Checkout POST) — app billing behavior unchanged. 7 new
-marketing components (`Wordmark`, `ThemeToggle`, `MarketingNav`, `Hero`, `FeatureGrid`, `Testimonials`,
-`MarketingFooter`). Placeholder `app/page.tsx` deleted. Audit found **0 🔴 / 3 🟠** — all fixed
-(removed nav backdrop-blur per design.md, bumped nav tap targets to 44px, wrote 2 DECISIONS entries).
-**Next session: Checkpoint 5.2.** (See "Checkpoint 5.1 closeout — 2026-06-06" below.)
+**Phase 5.2 — App polish: CODE-COMPLETE (2026-06-06), committed; session audit runs as a follow-up
+commit; live verification deferred.** Built: notification preferences end-to-end
+(`profiles.notification_preferences jsonb` migration + idempotent alter + column-grant widening,
+`lib/notifications.ts` opt-out merge / fail-open `shouldSendNotification`, `/settings/notifications`
+Switch form + `updateNotificationPreferencesAction`, gating wired into `lib/email.ts`'s payment-failed
++ trial-ending sends via a new `ownerId` on `getWorkspaceOwnerContact`); `<PastDueBanner>` in the app
+layout (self-hides unless `past_due`, CTA → portal); `<WelcomeTour>` on `/dashboard?welcome=true`
+(localStorage-dismiss; auth callback redirects first-time signups there); empty-state polish
+(solo-team "Build your team", admin "No activity in this range", Free-plan billing upgrade callout).
+616 tests; coverage 88.28/81.46/89.11/90.34. **Next session: Checkpoint 5.3.**
+(See "Checkpoint 5.2 closeout — 2026-06-06" below.)
 
 ## Completed
+- [2026-06-06] Phase 5.2 — App polish: `profiles.notification_preferences jsonb` (migration + idempotent alter + column-grant widening to include it), `lib/notifications.ts` (opt-out merge over all-`true` defaults; `shouldSendNotification` reads via service client + fails open) + `lib/validation/notifications.ts`; `/settings/notifications` real Switch form + `updateNotificationPreferencesAction`; preference gating wired into `lib/email.ts` (`payment_failed`/`trial_ending`) via a new `ownerId` on `getWorkspaceOwnerContact`; `<PastDueBanner>` in the app layout; `<WelcomeTour>` on `/dashboard?welcome=true` (callback sets it for first-time signups); empty-state polish (team/admin-activity/billing-Free). 616 tests; coverage 88.28/81.46/89.11/90.34. Committed before the session audit (audit + any fixes land as a follow-up commit). (See "Checkpoint 5.2 closeout — 2026-06-06" below.)
 - [2026-06-06] Phase 5.1 — Landing + pricing pages: `app/(marketing)/` route group (shared nav/footer layout + skip link), `/` landing (8 sections incl. fixed-dark pricing band with the one allowed radial teal glow), standalone `/pricing` (PricingTable + grouped comparison table + 8-question FAQ); `PricingTable` extended with `variant="dark"` + `ctaHref` (reused across app billing + both marketing surfaces); 7 marketing components; deleted placeholder `app/page.tsx`; coverage thresholds → 85/85/80/85. Post-build audit: 0 🔴, 3 🟠 all fixed (nav backdrop-blur removed, 44px tap targets, DECISIONS entries). 591 tests; coverage 88.52/81.34/88.83/90.65. Code-complete + committed; live visual/Lighthouse/mobile verification deferred to a paired pass. (See "Checkpoint 5.1 closeout — 2026-06-06" below.)
 - [2026-06-05] Phase 4 manual verification — full admin + impersonation suite verified live (paired session): admin-only auth boundary (non-admin redirect + toast, role-gated Topbar Admin link), user search/plan/status filters, audited plan override (DB + `activity_log`), subscriptions + Stripe deep links, activity-log filter + pagination, **impersonation end-to-end** (swap → target's real data → comped plan on target's billing → Exit → both `admin.impersonation_*` audit rows w/ `impersonator_id`), RLS **14/14**, mobile (DevTools + real-phone). Applied the 3 admin-select RLS policies live. **Found + fixed 5 issues**: debounced live user-search (was submit-only, empty didn't reset), search now matches workspace name, plan-override audit row now names the target user, `/settings/billing` now in the settings sub-nav, and `rls-verify.mjs` teardown no longer leaks fixtures. Seeded a realistic 16-workspace demo set (`scripts/seed-demo.mjs`). All committed; 567 tests; coverage 87.82/80.04/89.22/90.12. (See "Phase 4 manual verification — 2026-06-05" below.)
 - [2026-06-04] Phase 4.3 — Impersonation end-to-end: `lib/impersonation.ts` (`jose` HS256-signed httpOnly cookie, 30-min TTL, key=SHA-256 of the service-role secret); `lib/auth.ts` split into effective app identity (`getUser()` returns the impersonated target) vs real identity (`getSessionUser()` + `requireAdmin()` keep admin powers); `ImpersonateBanner` in both layouts + the wired Impersonate button on user detail; 2 routes (`POST /api/admin/users/[id]/impersonate` w/ `impersonate` 5/min limiter + audit, `POST /api/admin/impersonate/end` cookie-as-proof + audit); 3 new admin-select RLS policies (`workspace_members`/`usage`/`projects`) for the read path; `jose` promoted to a direct dep. 564 tests; coverage 87.72/79.74/89.13/90.05. Code-complete + committed; audit post-commit; live verification deferred. (See "Checkpoint 4.3 closeout — 2026-06-04" below.)
@@ -41,10 +43,17 @@ marketing components (`Wordmark`, `ThemeToggle`, `MarketingNav`, `Hero`, `Featur
 - [2026-05-28] Phase 1.1 — DB + lib foundation + test mocks + Sentry + security audit. (See "Checkpoint 1.1 closeout" below.)
 
 ## In progress
-- **Phase 5.1 code-complete + audited (2026-06-06); live visual/Lighthouse/mobile verification deferred.**
-  The marketing site builds clean and unit tests pass, but the 5.1 "Done when" Lighthouse targets
-  (≥90 Perf / ≥95 A11y / ≥95 BP / ≥95 SEO on `/`) and the "all 8 sections render in light/dark,
-  mobile/desktop" check need a live browser — deferred to a paired pass (same pattern as prior phases).
+- **Phase 5.2 code-complete (2026-06-06); committed; session audit pending as a follow-up commit;
+  live verification deferred.** All four gates green, but the 5.2 "Done when" live checks need a real
+  stack: notification preferences save/reload in the browser, a Stripe `invoice.payment_failed` →
+  past-due banner appears (and `invoice.payment_succeeded` → it disappears), first-signup welcome tour
+  + reload-doesn't-reshow, and an opt-out test send. Deferred to a paired live pass (same pattern as
+  prior checkpoints). **`notification_preferences` column must be applied to the live DB** — the
+  idempotent `alter table profiles add column if not exists … ` is in `combined.sql`; run it in the
+  SQL Editor before the live notifications pass.
+- **5.1 code-complete + audited (2026-06-06); live visual/Lighthouse/mobile verification deferred.**
+  5.1 "Done when" Lighthouse targets (≥90/95/95/95 on `/`) + light/dark mobile/desktop render check
+  need a live browser — deferred to a paired pass.
 - **5.1 audit 🟡 deferred to Checkpoint 5.3** (the explicit a11y/perf/SEO audit checkpoint):
   1. Mobile nav drawer has no Escape-to-close / focus trap (it's a disclosure; closes on link-click).
   2. Sub-44px tap targets remain **codebase-wide** (shadcn Button default + existing icon buttons);
@@ -53,12 +62,12 @@ marketing components (`Wordmark`, `ThemeToggle`, `MarketingNav`, `Hero`, `Featur
   4. >3 font weights on the landing (design.md soft "don't") — tighten in the 5.3 visual polish if wanted.
 - **Phase 4 — shippable + live-verified (2026-06-05).** 3 admin-select RLS policies applied to the live
   DB; `scripts/rls-verify.mjs` stays **14/14**. Impersonation security edges unit-tested, not driven live.
-- **Carry-over deferrals** (non-blocking, batch into Phase 5.2/5.3 or when a domain is wired):
+- **Carry-over deferrals** (non-blocking, batch into Phase 5.3 or when a domain is wired):
   1. **Live invite email** — gated on a **verified Resend domain** (standing 3.1 issue).
   2. **OAuth-invite cookie gap** — `/signup?invite=` + "Sign up with Google" doesn't carry the
      `bk_invite` cookie; email-signup + existing-account paths work. Documented v1 defer.
-- **Next:** **Checkpoint 5.2 — App polish** (notification preferences + migration, empty-state CTAs,
-  past-due banner, welcome tour, notification-pref checks wired into `lib/email.ts`).
+- **Next:** **Checkpoint 5.3 — Audits + production deploy** (a11y + perf + SEO/metadata + sitemap/robots
+  + README/CHANGELOG + Vercel/Stripe-prod/Supabase-prod pre-deploy checklist + production smoke test).
 
 ## Phase 2 — entry notes (read before Checkpoint 2.1)
 Pre-flight review 2026-05-29. The DB/RLS/grants/RPC foundation is **Phase-2-ready, no blockers**: `subscriptions` has all Stripe columns + `updated_at` trigger + `unique(workspace_id)`/`unique(stripe_customer_id)`; `usage` has `unique(workspace_id, resource)` + `count >= 0` with `increment_usage` (upsert) / `decrement_usage` (clamps at 0); `projects` RLS = member insert/select/update + owner/admin-only delete; `stripe_events` = `id`/`type`/`processed_at` (no RLS); `service_role` grants fixed; `usage_select_members` exists so enforcement reads don't fail open. Watch-items:
@@ -129,6 +138,70 @@ After the scaffold installed, three known issues were addressed in the same Clau
 - **postcss XSS advisory:** accepted, not fixed (see Known issues + DECISIONS.md).
 
 Last known-good build: `npm run build` → clean (zero TS errors, zero lint warnings, 5 routes generated).
+
+---
+
+## Checkpoint 5.2 closeout — 2026-06-06
+
+### 1. Planned vs delivered
+- ✅ `/settings/notifications` page with preference toggles (Switch form, saves via server action)
+- ✅ `notification_preferences jsonb` on `profiles` (migration in `combined.sql` + idempotent `alter`)
+- ✅ `lib/notifications.ts` — `getNotificationPreferences` / `updateNotificationPreferences` / `shouldSendNotification`
+- ✅ `shouldSendNotification` wired into `lib/email.ts` (`payment_failed` + `trial_ending`)
+- ✅ `<PastDueBanner>` rendered in `app/(app)/layout.tsx`, shown when subscription is `past_due`
+- ✅ `<WelcomeTour>` on `/dashboard?welcome=true`, localStorage-dismiss, callback sets it for first-time signups
+- ✅ Empty states upgraded — ⚠️ **deviation:** `/projects` already had a full icon+headline+body+CTA empty state (built in 2.2), so it was left as-is; team ("Build your team"), `/admin/activity` ("No activity in this range"), and `/settings/billing` Free-plan upgrade callout were added
+- ⚠️ **Live verification** (preferences save/reload, past-due banner on real Stripe events, welcome-tour reload, opt-out test send) — NOT done; needs a live stack (deferred)
+- ⚠️ **`notification_preferences` column on the live DB** — NOT applied (idempotent `alter` is in `combined.sql`; run before the live pass)
+
+### 2. In plain English (delivered)
+The app gained its production polish. Users can now opt out of any of five notification kinds at
+`/settings/notifications` (Switch form, Save disabled until dirty); preferences live in a jsonb column
+on `profiles` and are read opt-out (anything unset = on). The two billing notification emails
+(payment-failed, trial-ending) consult the workspace owner's preference before sending — gated only
+when the owner's id is supplied, so the typed senders stay usable elsewhere and fail open if the
+preference read errors. A danger banner now appears on every app page while a subscription is
+`past_due`, with a CTA that opens the Stripe portal, and self-hides otherwise. Brand-new signups land
+on `/dashboard?welcome=true` and see a dismissable three-step welcome card (dismissal persists in
+localStorage). Empty states across team/admin-activity/billing got clearer, CTA-bearing treatments.
+What's NOT done is the *live* sign-off and the one-line live-DB column migration — both deferred to a
+paired pass, consistent with prior checkpoints.
+
+### 3. Done-when verification
+- ✅ `/settings/notifications` saves to `profiles.notification_preferences` (unit-tested merge + write capture)
+- ✅ Email send functions check the relevant preference before sending (unit-tested: skip on opt-out, send on enabled, no check without an id)
+- ✅ All upgraded empty states have illustration + headline + body + CTA (projects/team/billing); admin-activity is a text empty state ("No activity in this range")
+- ✅ `<PastDueBanner>` renders only on `past_due`, CTA opens the portal (unit-tested)
+- ✅ `<WelcomeTour>` renders on first signup, dismiss writes localStorage, does not re-render when the flag is set (unit-tested)
+- ✅ All polish component tests pass
+- ✅ `npm run test:coverage` **88.28 / 81.46 / 89.11 / 90.34** (≥ 85/80/85/85)
+- ✅ `npm run build` zero errors (`/settings/notifications` now a real route, 6.03 kB)
+
+### 4. Test files added/changed
+- `tests/lib/notifications.test.ts` (new, 9)
+- `tests/components/NotificationsForm.test.tsx` (new, 4)
+- `tests/components/PastDueBanner.test.tsx` (new, 5)
+- `tests/components/WelcomeTour.test.tsx` (new, 3)
+- `tests/components/ActivityLog.test.tsx` (extended +1: empty-range state)
+- `tests/lib/email.test.ts` (extended +3: preference gating)
+- `tests/lib/workspace.test.ts` (updated: `ownerId` on the owner-contact shape)
+- `tests/api/auth-callback.test.ts` (updated +0 net: 3 first-signin redirects → `?welcome=true`)
+
+### 5. New DECISIONS.md entries
+- Notification preferences are an opt-out jsonb map; `shouldSendNotification` fails open; email gating is optional via `recipientUserId`.
+- WelcomeTour: server gates on `?welcome=true`, client gates on a localStorage flag; callback sets the param for first-time signups.
+
+### 6. Deferred items
+- **Live verification** (preferences round-trip, past-due banner on real `invoice.payment_*`, welcome-tour reload, opt-out test send) → paired live pass.
+- **Apply `notification_preferences` to the live DB** (`alter table profiles add column if not exists …`) → before the live notifications pass.
+- **Session audit** → follow-up commit (committed before the audit per the commit-before-audit workflow).
+
+### 7. Known issues
+- The notification kinds `weekly_digest`, `member_joined`, and `plan_changes` have **no senders yet** (no weekly digest job, no member-joined email, no plan-change email in v1) — the toggles are wired and stored, but only `payment_failed` + `trial_ending` actually gate a live send today. The others are forward-compatible scaffolding.
+- `lib/notifications.ts` branch coverage (90%) leaves the `updateNotificationPreferences` write-error log path uncovered — the per-table Supabase mock can't express "read succeeds, write fails" (the inner read short-circuits first). Overall branches 81.46% ≥ 80%.
+
+### 8. What surprised me
+Deleting/adding a `profiles` column forced the `getProfile`/`updateProfile` selects to list `notification_preferences` even though those functions don't use it — the typed client narrows the row to the selected columns, and returning it as the full `Profile` Row failed `tsc` until the column was added to both `select(...)` strings.
 
 ---
 

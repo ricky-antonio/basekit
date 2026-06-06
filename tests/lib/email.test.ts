@@ -13,6 +13,11 @@ vi.mock("@sentry/nextjs", () => ({
   captureMessage: vi.fn(),
 }))
 
+const shouldSendNotification = vi.fn().mockResolvedValue(true)
+vi.mock("@/lib/notifications", () => ({
+  shouldSendNotification: (...args: unknown[]) => shouldSendNotification(...args),
+}))
+
 import {
   sendEmail,
   sendWelcomeEmail,
@@ -34,6 +39,7 @@ function lastReact<P>(): ReactElement<P> {
 beforeEach(() => {
   resetResendMock()
   vi.clearAllMocks()
+  shouldSendNotification.mockResolvedValue(true)
 })
 
 describe("sendEmail", () => {
@@ -134,5 +140,36 @@ describe("typed send functions", () => {
     expect(lastReact<{ acceptUrl: string }>().props.acceptUrl).toBe(
       "https://basekit.test/team/accept/tok",
     )
+  })
+})
+
+describe("notification-preference gating", () => {
+  it("skips sendPaymentFailedEmail when the recipient opted out", async () => {
+    shouldSendNotification.mockResolvedValueOnce(false)
+
+    const result = await sendPaymentFailedEmail({
+      to: "a@b.com",
+      workspaceName: "Acme",
+      recipientUserId: "user-1",
+    })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.id).toBeNull()
+    expect(shouldSendNotification).toHaveBeenCalledWith("user-1", "payment_failed")
+    expect(mockResendSend).not.toHaveBeenCalled()
+  })
+
+  it("sends sendTrialEndingEmail when the recipient preference is enabled", async () => {
+    await sendTrialEndingEmail({ to: "a@b.com", workspaceName: "Acme", recipientUserId: "user-1" })
+
+    expect(shouldSendNotification).toHaveBeenCalledWith("user-1", "trial_ending")
+    expect(mockResendSend).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not consult preferences when no recipientUserId is given", async () => {
+    await sendPaymentFailedEmail({ to: "a@b.com", workspaceName: "Acme" })
+
+    expect(shouldSendNotification).not.toHaveBeenCalled()
+    expect(mockResendSend).toHaveBeenCalledTimes(1)
   })
 })

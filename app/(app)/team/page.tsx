@@ -7,9 +7,11 @@ import { getUsage } from "@/lib/usage"
 import { getActivePlan } from "@/lib/billing"
 import { PLANS } from "@/lib/plans"
 import PageHeader from "@/components/shared/PageHeader"
+import EmptyState from "@/components/shared/EmptyState"
 import InviteForm from "@/components/team/InviteForm"
 import TeamMembers from "@/components/team/TeamMembers"
 import PendingInviteRow from "@/components/team/PendingInviteRow"
+import { IconUsersGroup } from "@tabler/icons-react"
 
 export const metadata = { title: "Team — basekit" }
 
@@ -37,6 +39,7 @@ export default async function TeamPage() {
   const limit = PLANS[plan].memberLimit
   const used = usageResult.ok ? usageResult.data : membersResult.ok ? membersResult.data.length : 1
   const pending = pendingResult.ok ? pendingResult.data : []
+  const isSoloTeam = used <= 1 && pending.length === 0
 
   return (
     <div className="max-w-5xl mx-auto w-full">
@@ -53,8 +56,20 @@ export default async function TeamPage() {
         </span>
       </div>
 
+      {canManage && isSoloTeam && (
+        <div className="mb-8">
+          <EmptyState
+            icon={<IconUsersGroup size={40} />}
+            headline="Build your team"
+            body={`You're the only one in ${workspace.name}. Invite teammates to collaborate on projects together.`}
+            actionLabel="Invite a teammate"
+            actionHref="#invite-teammate"
+          />
+        </div>
+      )}
+
       {canManage && (
-        <section className="mb-8">
+        <section id="invite-teammate" className="mb-8 scroll-mt-20">
           <h2 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>
             Invite a teammate
           </h2>

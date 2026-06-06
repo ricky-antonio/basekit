@@ -2,9 +2,11 @@ import { redirect } from "next/navigation"
 import { requireAuth } from "@/lib/auth"
 import { getImpersonationContext } from "@/lib/impersonation"
 import { getWorkspace } from "@/lib/workspace"
+import { getSubscription } from "@/lib/subscription"
 import { getProfile, deriveDisplayName } from "@/lib/profile"
 import AppShell from "@/components/layout/AppShell"
 import ImpersonateBanner from "@/components/admin/ImpersonateBanner"
+import PastDueBanner from "@/components/billing/PastDueBanner"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const authResult = await requireAuth()
@@ -24,6 +26,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // (authed) → redirect loop. This layout runs before any child page renders.
   if (!workspaceResult.ok) redirect("/no-workspace")
 
+  const subscriptionResult = await getSubscription(workspaceResult.data.id)
+  const subscriptionStatus = subscriptionResult.ok ? subscriptionResult.data.status : null
+
   const workspaceName = workspaceResult.data.name
   const profile = profileResult.ok ? profileResult.data : null
   const displayName = deriveDisplayName(user, profile)
@@ -33,6 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <ImpersonateBanner context={impersonation} />
+      <PastDueBanner status={subscriptionStatus} />
       <div className="min-h-0 flex-1">
         <AppShell
           workspaceName={workspaceName}

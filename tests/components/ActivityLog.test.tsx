@@ -61,6 +61,12 @@ describe("ActivityLog", () => {
     expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled()
   })
 
+  it("shows a range-specific empty state when there are no activities", async () => {
+    mockFetch({ activities: [], page: 1, pageSize: 20 })
+    render(<ActivityLog />)
+    expect(await screen.findByText("No activity in this range.")).toBeInTheDocument()
+  })
+
   it("shows an error message when the fetch fails", async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }) as unknown as typeof fetch
     render(<ActivityLog />)

@@ -58,6 +58,20 @@ export type UserRole = "user" | "admin"
 
 export type UsageResource = "projects" | "members"
 
+// The notification kinds a user can opt out of. The order here is the order the
+// toggles render on the settings page.
+export const NOTIFICATION_KINDS = [
+  "weekly_digest",
+  "payment_failed",
+  "trial_ending",
+  "member_joined",
+  "plan_changes",
+] as const
+
+export type NotificationKind = (typeof NOTIFICATION_KINDS)[number]
+
+export type NotificationPreferences = Record<NotificationKind, boolean>
+
 // ------------------------------------------------------------------ //
 // Exhaustive-switch helper                                             //
 // ------------------------------------------------------------------ //
