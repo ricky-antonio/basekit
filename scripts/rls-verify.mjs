@@ -123,9 +123,20 @@ try {
   console.error("\nSETUP ERROR:", e.message)
   results.push({ name: "setup", pass: false, detail: e.message })
 } finally {
-  if (A) await admin.auth.admin.deleteUser(A.id).catch(() => {})
-  if (B) await admin.auth.admin.deleteUser(B.id).catch(() => {})
-  console.log("\nCleaned up test users.")
+  // workspaces.owner_id is ON DELETE RESTRICT, so deleteUser fails while the user still
+  // owns a workspace — delete the workspace FIRST (cascades members/subs/usage/invitations/
+  // activity), then the user. Surface failures rather than swallowing them, or leaked
+  // fixtures pile up silently (they did).
+  for (const u of [A, B]) {
+    if (!u) continue
+    if (u.workspaceId) {
+      const { error } = await admin.from("workspaces").delete().eq("id", u.workspaceId)
+      if (error) console.error(`cleanup: workspace ${u.workspaceId} delete failed — ${error.message}`)
+    }
+    const { error } = await admin.auth.admin.deleteUser(u.id)
+    if (error) console.error(`cleanup: user ${u.email} delete failed — ${error.message}`)
+  }
+  console.log("\nCleaned up test users + workspaces.")
 }
 
 const failed = results.filter((r) => !r.pass)
