@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import toast from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { IconCheck } from "@tabler/icons-react"
@@ -11,6 +12,12 @@ interface PricingTableProps {
   currentPlan: PlanName
   proPriceIds: { monthly: string; annual: string }
   enterprisePriceIds: { monthly: string; annual: string }
+  // "dark" is the marketing pricing section: fixed dark surfaces (always dark, independent
+  // of theme) with annual selected by default. "light" (default) is the app billing page.
+  variant?: "light" | "dark"
+  // When set, every plan CTA becomes a link to this href (the marketing site, where the
+  // visitor isn't authenticated). When omitted, CTAs open Stripe Checkout (the app).
+  ctaHref?: string
 }
 
 const PLANS_DISPLAY = [
@@ -50,9 +57,27 @@ export default function PricingTable({
   currentPlan,
   proPriceIds,
   enterprisePriceIds,
+  variant = "light",
+  ctaHref,
 }: PricingTableProps) {
-  const [interval, setInterval] = useState<"monthly" | "annual">("monthly")
+  const isDark = variant === "dark"
+  const [interval, setInterval] = useState<"monthly" | "annual">(isDark ? "annual" : "monthly")
   const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null)
+
+  // The marketing section is always dark regardless of the active theme, so its colors are
+  // fixed hex values rather than the theme-reactive CSS variables used by the app billing page.
+  const color = {
+    toggleTrack: isDark ? "#1E1E1E" : "var(--bg-surface-hover)",
+    toggleActiveBg: isDark ? "#0A0A0A" : "var(--bg-surface)",
+    toggleActiveText: isDark ? "#FAFAFA" : "var(--text-primary)",
+    toggleIdleText: isDark ? "#666666" : "var(--text-muted)",
+    cardBg: isDark ? "#141414" : "var(--bg-surface)",
+    cardBgPopular: isDark ? "#042F2E" : "var(--bg-surface)",
+    cardBorder: isDark ? "#1E1E1E" : "var(--border-default)",
+    textPrimary: isDark ? "#FAFAFA" : "var(--text-primary)",
+    textSecondary: isDark ? "#A8A29E" : "var(--text-secondary)",
+    brand: isDark ? "#2DD4BF" : "var(--brand-primary)",
+  }
 
   function getPriceId(planName: PlanName): string | null {
     if (planName === "pro") return interval === "monthly" ? proPriceIds.monthly : proPriceIds.annual
@@ -85,22 +110,23 @@ export default function PricingTable({
   }
 
   return (
-    <div>
+    <div data-variant={variant}>
       {/* Billing interval toggle */}
-      <div className="flex gap-1 p-1 rounded-lg w-fit" style={{ background: "var(--bg-surface-hover)" }}>
+      <div
+        className="flex gap-1 p-1 rounded-lg w-fit"
+        style={{ background: color.toggleTrack }}
+      >
         <button
           onClick={() => setInterval("monthly")}
           aria-pressed={interval === "monthly"}
           className={cn(
             "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
-            interval === "monthly"
-              ? "shadow-sm"
-              : "hover:opacity-80",
+            interval === "monthly" ? "shadow-sm" : "hover:opacity-80",
           )}
           style={
             interval === "monthly"
-              ? { background: "var(--bg-surface)", color: "var(--text-primary)" }
-              : { color: "var(--text-muted)" }
+              ? { background: color.toggleActiveBg, color: color.toggleActiveText }
+              : { color: color.toggleIdleText }
           }
         >
           Monthly
@@ -110,18 +136,16 @@ export default function PricingTable({
           aria-pressed={interval === "annual"}
           className={cn(
             "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
-            interval === "annual"
-              ? "shadow-sm"
-              : "hover:opacity-80",
+            interval === "annual" ? "shadow-sm" : "hover:opacity-80",
           )}
           style={
             interval === "annual"
-              ? { background: "var(--bg-surface)", color: "var(--text-primary)" }
-              : { color: "var(--text-muted)" }
+              ? { background: color.toggleActiveBg, color: color.toggleActiveText }
+              : { color: color.toggleIdleText }
           }
         >
           Annual
-          <span className="ml-1.5 text-xs font-semibold" style={{ color: "var(--brand-primary)" }}>
+          <span className="ml-1.5 text-xs font-semibold" style={{ color: color.brand }}>
             Save 20%
           </span>
         </button>
@@ -161,56 +185,72 @@ export default function PricingTable({
                 plan.popular ? "ring-2" : "",
               )}
               style={{
-                background: "var(--bg-surface)",
-                border: plan.popular ? "none" : "1px solid var(--border-default)",
-                boxShadow: plan.popular ? `0 0 0 2px var(--brand-primary)` : undefined,
+                background: plan.popular ? color.cardBgPopular : color.cardBg,
+                border: plan.popular ? "none" : `1px solid ${color.cardBorder}`,
+                boxShadow: plan.popular ? `0 0 0 2px ${color.brand}` : undefined,
               }}
             >
               {plan.popular && (
                 <div
                   className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-xs font-semibold"
-                  style={{ background: "var(--brand-primary)", color: "var(--text-on-brand)" }}
+                  style={{ background: color.brand, color: isDark ? "#0A0A0A" : "var(--text-on-brand)" }}
                 >
                   Most popular
                 </div>
               )}
 
               <div>
-                <h3 className="font-semibold text-base" style={{ color: "var(--text-primary)" }}>
+                <h3 className="font-semibold text-base" style={{ color: color.textPrimary }}>
                   {plan.label}
                 </h3>
-                <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                <p className="text-sm mt-0.5" style={{ color: color.textSecondary }}>
                   {plan.description}
                 </p>
               </div>
 
               <div className="flex items-baseline gap-0.5">
-                <span className="text-3xl font-bold" style={{ color: "var(--text-primary)" }}>
+                <span className="text-3xl font-bold" style={{ color: color.textPrimary }}>
                   {price}
                 </span>
-                <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                <span className="text-sm" style={{ color: color.textSecondary }}>
                   {subline}
                 </span>
               </div>
 
               <ul className="flex flex-col gap-2 flex-1">
                 {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-                    <IconCheck size={14} style={{ color: "var(--brand-primary)" }} aria-hidden="true" />
+                  <li
+                    key={feature}
+                    className="flex items-center gap-2 text-sm"
+                    style={{ color: color.textSecondary }}
+                  >
+                    <IconCheck size={14} style={{ color: color.brand }} aria-hidden="true" />
                     {feature}
                   </li>
                 ))}
               </ul>
 
-              <Button
-                onClick={canUpgradeHere && priceId ? () => handleUpgrade(priceId) : undefined}
-                disabled={!canUpgradeHere}
-                variant={plan.popular ? "default" : "outline"}
-                className="w-full"
-                aria-label={ctaAriaLabel}
-              >
-                {ctaLabel}
-              </Button>
+              {ctaHref ? (
+                <Button
+                  asChild
+                  variant={plan.popular ? "default" : "outline"}
+                  className="w-full"
+                >
+                  <Link href={ctaHref} aria-label={`Get started with ${plan.label}`}>
+                    Get started
+                  </Link>
+                </Button>
+              ) : (
+                <Button
+                  onClick={canUpgradeHere && priceId ? () => handleUpgrade(priceId) : undefined}
+                  disabled={!canUpgradeHere}
+                  variant={plan.popular ? "default" : "outline"}
+                  className="w-full"
+                  aria-label={ctaAriaLabel}
+                >
+                  {ctaLabel}
+                </Button>
+              )}
             </div>
           )
         })}

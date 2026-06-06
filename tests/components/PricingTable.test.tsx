@@ -70,4 +70,34 @@ describe("PricingTable", () => {
     const enterpriseCta = screen.getByRole("button", { name: /manage enterprise in the billing portal/i })
     expect(enterpriseCta).toBeDisabled()
   })
+
+  it("dark variant uses dark surface tokens", () => {
+    const { container } = render(<PricingTable {...defaultProps} variant="dark" />)
+    const root = container.querySelector('[data-variant="dark"]')
+    expect(root).toBeInTheDocument()
+    // Cards carry fixed dark surfaces rather than the theme-reactive CSS variables.
+    expect(container.querySelector('[style*="rgb(20, 20, 20)"]')).toBeInTheDocument()
+  })
+
+  it("annual toggle is default-selected and shows 'Save 20%' pill in the dark variant", () => {
+    render(<PricingTable {...defaultProps} variant="dark" />)
+
+    expect(screen.getByRole("button", { name: /annual/i })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: /monthly/i })).toHaveAttribute("aria-pressed", "false")
+    expect(screen.getByText("Save 20%")).toBeInTheDocument()
+    // Annual is the default, so Pro shows its annual price.
+    expect(screen.getByText("$23")).toBeInTheDocument()
+  })
+
+  it("Pro card has the 'MOST POPULAR' badge", () => {
+    render(<PricingTable {...defaultProps} variant="dark" />)
+    expect(screen.getByText(/most popular/i)).toBeInTheDocument()
+  })
+
+  it("ctaHref turns every CTA into a signup link instead of opening Checkout", () => {
+    render(<PricingTable {...defaultProps} variant="dark" ctaHref="/signup" />)
+    const ctas = screen.getAllByRole("link", { name: /get started with/i })
+    expect(ctas).toHaveLength(3)
+    ctas.forEach((cta) => expect(cta).toHaveAttribute("href", "/signup"))
+  })
 })
