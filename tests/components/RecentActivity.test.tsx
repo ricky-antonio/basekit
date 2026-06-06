@@ -30,6 +30,20 @@ describe("RecentActivity", () => {
     expect(screen.getByText("free → pro · comped")).toBeInTheDocument()
   })
 
+  it("prefixes the target identity on a plan override when present", () => {
+    render(
+      <RecentActivity
+        activities={[
+          row({
+            action: "admin.plan_override",
+            metadata: { from: "free", to: "pro", reason: "comped", targetName: "Noah Reyes", targetEmail: "noah@test.com" },
+          }),
+        ]}
+      />,
+    )
+    expect(screen.getByText("Noah Reyes · free → pro · comped")).toBeInTheDocument()
+  })
+
   it("flags impersonated actions", () => {
     render(<RecentActivity activities={[row({ impersonatorId: "admin-9" })]} />)
     expect(screen.getByText("Impersonated")).toBeInTheDocument()

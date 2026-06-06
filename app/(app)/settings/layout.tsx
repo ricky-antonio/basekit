@@ -13,6 +13,7 @@ interface SettingsNavItem {
 const settingsNav: SettingsNavItem[] = [
   { href: "/settings/profile", label: "Profile" },
   { href: "/settings/workspace", label: "Workspace" },
+  { href: "/settings/billing", label: "Billing" },
   { href: "/settings/notifications", label: "Notifications" },
   { href: "/settings/security", label: "Security" },
   { href: "/settings/danger", label: "Danger zone", danger: true },

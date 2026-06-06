@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { render, screen, waitFor, within, fireEvent } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import UserTable from "@/components/admin/UserTable"
 import type { AdminUserList, AdminUserRow } from "@/lib/admin"
@@ -69,6 +69,38 @@ describe("UserTable", () => {
     await userEvent.type(screen.getByLabelText("Search users"), "bob")
     await userEvent.keyboard("{Enter}")
     expect(mocks.push).toHaveBeenCalledWith("/admin/users?search=bob")
+  })
+
+  it("debounces typed input into the URL (live search) and resets the page", async () => {
+    vi.useFakeTimers()
+    try {
+      mocks.params = "page=2"
+      mockFetch({ users: [user()], total: 1, page: 2, pageSize: 20 })
+      render(<UserTable />)
+
+      fireEvent.change(screen.getByLabelText("Search users"), { target: { value: "bob" } })
+      expect(mocks.push).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(300)
+      expect(mocks.push).toHaveBeenCalledWith("/admin/users?search=bob")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("clearing the search field resets the URL", async () => {
+    vi.useFakeTimers()
+    try {
+      mocks.params = "search=bob"
+      mockFetch({ users: [user()], total: 1, page: 1, pageSize: 20 })
+      render(<UserTable />)
+
+      fireEvent.change(screen.getByLabelText("Search users"), { target: { value: "" } })
+      await vi.advanceTimersByTimeAsync(300)
+      expect(mocks.push).toHaveBeenCalledWith("/admin/users?")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("updates the URL when the plan filter changes", async () => {

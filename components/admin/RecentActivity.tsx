@@ -25,7 +25,10 @@ function detailOf(row: AdminActivityRow): string | null {
   const to = typeof meta["to"] === "string" ? meta["to"] : null
   if (from && to) {
     const reason = typeof meta["reason"] === "string" ? ` · ${meta["reason"]}` : ""
-    return `${from} → ${to}${reason}`
+    const targetName = typeof meta["targetName"] === "string" ? meta["targetName"] : null
+    const targetEmail = typeof meta["targetEmail"] === "string" ? meta["targetEmail"] : null
+    const target = targetName ?? targetEmail
+    return `${target ? `${target} · ` : ""}${from} → ${to}${reason}`
   }
   if (typeof meta["email"] === "string") return meta["email"]
   if (typeof meta["name"] === "string") return meta["name"]

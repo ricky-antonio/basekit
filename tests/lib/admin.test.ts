@@ -91,7 +91,7 @@ describe("listUsers", () => {
     )
   })
 
-  it("search matches email and display_name", async () => {
+  it("search matches email, display_name, and workspace name", async () => {
     seedTwoUsers()
     const byName = await listUsers({ search: "bob" })
     expect(byName.ok && byName.data.users.map((u) => u.userId)).toEqual(["owner-b"])
@@ -99,6 +99,11 @@ describe("listUsers", () => {
     seedTwoUsers()
     const byEmail = await listUsers({ search: "acme" })
     expect(byEmail.ok && byEmail.data.users).toHaveLength(2)
+
+    // "Beta" matches only owner-b's workspace name — not Bob's name nor the shared email.
+    seedTwoUsers()
+    const byWorkspace = await listUsers({ search: "beta" })
+    expect(byWorkspace.ok && byWorkspace.data.users.map((u) => u.userId)).toEqual(["owner-b"])
   })
 
   it("returns an empty list when there are no subscriptions", async () => {
@@ -189,15 +194,23 @@ describe("overrideUserPlan", () => {
     expect(write?.payload).toMatchObject({ plan_name: "pro", status: "active", cancel_at_period_end: false })
   })
 
-  it("logs activity admin.plan_override", async () => {
+  it("logs activity admin.plan_override with the target identity", async () => {
     seedOverride()
+    mockSupabaseAdminUser({ id: "u1", email: "target@test.com", user_metadata: { display_name: "Target User" } })
     await overrideUserPlan({ admin: adminUser, userId: "u1", plan: "enterprise", reason: "vip" })
     expect(mocks.logActivity).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "admin.plan_override",
         actorId: "admin-1",
         workspaceId: "ws-1",
-        metadata: expect.objectContaining({ from: "free", to: "enterprise", reason: "vip", targetUserId: "u1" }),
+        metadata: expect.objectContaining({
+          from: "free",
+          to: "enterprise",
+          reason: "vip",
+          targetUserId: "u1",
+          targetEmail: "target@test.com",
+          targetName: "Target User",
+        }),
       }),
     )
   })

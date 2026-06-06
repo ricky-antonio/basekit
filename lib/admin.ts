@@ -88,8 +88,8 @@ export interface ListUsersInput {
 
 // One subscription row exists per workspace and every user owns exactly one workspace
 // in v1, so the subscription set is the user set. plan/status filter at the DB; search
-// (email + name) needs the enriched identity, so it — and pagination — run in memory.
-// That's acceptable at v1 admin scale; a searchable identity column is a v2 concern.
+// (email + name + workspace name) needs the enriched identity, so it — and pagination —
+// run in memory. Acceptable at v1 admin scale; a searchable identity column is a v2 concern.
 export async function listUsers(input: ListUsersInput = {}): Promise<ApiResult<AdminUserList>> {
   const supabase = createServiceClient()
   const page = input.page && input.page > 0 ? input.page : 1
@@ -160,7 +160,8 @@ export async function listUsers(input: ListUsersInput = {}): Promise<ApiResult<A
     ? allRows.filter(
         (row) =>
           (row.email?.toLowerCase().includes(search) ?? false) ||
-          row.displayName.toLowerCase().includes(search),
+          row.displayName.toLowerCase().includes(search) ||
+          row.workspaceName.toLowerCase().includes(search),
       )
     : allRows
 
@@ -308,13 +309,24 @@ export async function overrideUserPlan(
     return { ok: false, error: { error: "Could not override the plan. Please try again.", code: "INTERNAL_ERROR" } }
   }
 
+  // Record who the override was applied to so the audit feed reads "<user>: free → pro"
+  // without a per-row identity lookup (mirrors member.invited carrying the invited email).
+  const target = await resolveAccount(supabase, userId)
+
   await logActivity({
     workspaceId: workspace.id,
     actorId: admin.id,
     action: "admin.plan_override",
     targetType: "subscription",
     targetId: workspace.id,
-    metadata: { from: fromPlan, to: plan, reason, targetUserId: userId },
+    metadata: {
+      from: fromPlan,
+      to: plan,
+      reason,
+      targetUserId: userId,
+      targetEmail: target.email,
+      targetName: target.metaName,
+    },
   })
 
   return { ok: true, data: { userId, plan } }

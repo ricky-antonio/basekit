@@ -69,6 +69,23 @@ export default function UserTable() {
     }
   }, [queryString])
 
+  // Live search: debounce the input into the URL so the table filters as you type and
+  // clearing the field resets. Only pushes when the trimmed input actually differs from
+  // the current URL param, so mount + post-push renders don't loop.
+  useEffect(() => {
+    const current = new URLSearchParams(queryString).get("search") ?? ""
+    const next = searchInput.trim()
+    if (next === current) return
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(queryString)
+      if (next) params.set("search", next)
+      else params.delete("search")
+      params.delete("page")
+      router.push(`/admin/users?${params.toString()}`)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchInput, queryString, router])
+
   function pushQuery(overrides: Record<string, string>) {
     const params = new URLSearchParams(queryString)
     for (const [key, value] of Object.entries(overrides)) {
@@ -99,7 +116,7 @@ export default function UserTable() {
           <Input
             type="search"
             aria-label="Search users"
-            placeholder="Search by name or email"
+            placeholder="Search by name, email, or workspace"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
           />
