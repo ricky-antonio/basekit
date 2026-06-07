@@ -17,8 +17,9 @@ production smoke test, README screenshots) for a paired live pass. Built this se
 `app/sitemap.ts` + `app/robots.ts` (public routes only; auth/admin disallowed) + `tests/lib/sitemap.test.ts`;
 root-layout SEO (`metadataBase`, `title` template `"%s · basekit"`, OpenGraph + Twitter card, icons) +
 `viewport` theme-color; `app/opengraph-image.tsx` (build-generated 1200×630 OG image); per-page metadata
-reconciled to the template (marketing landing/pricing canonical; login refactored to a server wrapper +
-`LoginForm.tsx` so it can export metadata; signup/reset/verify titles); `robots: { index:false }` on the
+reconciled to the template (marketing landing/pricing canonical; login + forgot-password refactored to
+server wrappers + `LoginForm.tsx`/`ForgotPasswordForm.tsx` so they can export metadata; signup/reset/verify
+titles); `robots: { index:false }` on the
 `(app)` + `(admin)` group layouts (+ standalone `/no-workspace`, `/team/accept`); a11y — MarketingNav
 mobile drawer Escape-to-close (closes the 5.1-deferred item) + reduced-motion `scroll-behavior` hardening;
 README + CHANGELOG v1.0. 624 tests; coverage 88.33/81.45/89.19/90.37. **Next: the 5.3 deploy +
