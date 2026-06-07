@@ -14,7 +14,7 @@ import AdminRequiredToast from "./AdminRequiredToast"
 import { Badge } from "@/components/ui/badge"
 import { IconFolder } from "@tabler/icons-react"
 
-export const metadata = { title: "Dashboard — basekit" }
+export const metadata = { title: "Dashboard" }
 
 export default async function DashboardPage({
   searchParams,

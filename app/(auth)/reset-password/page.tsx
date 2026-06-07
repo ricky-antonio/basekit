@@ -1,6 +1,12 @@
+import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { getUser } from "@/lib/auth"
 import { ResetPasswordForm } from "./ResetPasswordForm"
+
+export const metadata: Metadata = {
+  title: "Reset password",
+  robots: { index: false },
+}
 
 export default async function ResetPasswordPage() {
   // The Supabase password-recovery flow lands here with an active session

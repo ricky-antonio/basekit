@@ -4,8 +4,17 @@
 
 A production-ready SaaS starter — auth, subscription billing, teams, admin, and transactional email all wired together end-to-end. Sign up, hit a plan limit, upgrade through Stripe, invite a teammate, cancel — the full billing lifecycle works.
 
-**Status:** Phase 1 — Foundation + Auth + Workspaces (in progress)
-**Live URL:** _(local only — not yet deployed)_
+**Status:** v1.0 — feature-complete (Phases 1–5). Production deploy + live screenshots pending (Checkpoint 5.3).
+**Live URL:** _(pending production deploy — see [`PROGRESS.md`](PROGRESS.md))_
+
+---
+
+## Features
+- **Auth & workspaces** — email/password + Google OAuth, email verification, per-user workspace bootstrap, RLS on every table.
+- **Billing** — Stripe Checkout + Customer Portal, webhook-driven plan derivation, idempotent event processing, usage limits per plan.
+- **Teams** — invitations (single-use token), role management, member limits re-gated at accept time.
+- **Admin** — user/subscription search & filters, audited plan overrides, activity log, read-observational impersonation.
+- **Polish** — public marketing + pricing site, notification preferences, past-due banner, welcome tour, full dark mode, SEO metadata + sitemap/robots.
 
 ---
 

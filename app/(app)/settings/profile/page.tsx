@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth"
 import { getProfile } from "@/lib/profile"
 import ProfileForm from "./ProfileForm"
 
-export const metadata = { title: "Profile Settings — basekit" }
+export const metadata = { title: "Profile Settings" }
 
 export default async function ProfileSettingsPage() {
   const authResult = await requireAuth()

@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter, JetBrains_Mono } from "next/font/google"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "react-hot-toast"
@@ -19,9 +19,40 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 })
 
+const SITE_URL = process.env["NEXT_PUBLIC_SITE_URL"] ?? "http://localhost:3000"
+
 export const metadata: Metadata = {
-  title: "basekit",
-  description: "The foundation every SaaS needs to ship.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "basekit — The foundation every SaaS needs to ship",
+    template: "%s · basekit",
+  },
+  description:
+    "basekit is the production-ready SaaS foundation — auth, workspaces, Stripe billing, team management, and admin tooling, ready to ship.",
+  applicationName: "basekit",
+  keywords: ["SaaS boilerplate", "Next.js starter", "Supabase", "Stripe billing", "SaaS foundation"],
+  authors: [{ name: "basekit" }],
+  openGraph: {
+    type: "website",
+    siteName: "basekit",
+    url: SITE_URL,
+    title: "basekit — The foundation every SaaS needs to ship",
+    description:
+      "Auth, workspaces, Stripe billing, team management, and admin tooling — the foundation every SaaS needs to ship.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "basekit — The foundation every SaaS needs to ship",
+    description: "The foundation every SaaS needs to ship.",
+  },
+  icons: { icon: "/favicon.ico" },
+}
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
+    { media: "(prefers-color-scheme: dark)", color: "#0A0A0A" },
+  ],
 }
 
 export default function RootLayout({

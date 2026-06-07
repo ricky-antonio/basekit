@@ -3,15 +3,29 @@
 ---
 
 ## Current phase
-Phase 5 — Landing + Polish + Pre-deploy — **IN PROGRESS** (Checkpoint 5.2 code-complete,
-2026-06-06; committed before the session audit per the commit-before-audit workflow — audit + any
-fixes land as a follow-up commit). Phase 4 is COMPLETE + live-verified (2026-06-05). Coverage
-thresholds **85/85/80/85**. **Next: Checkpoint 5.3 — Audits + production deploy.**
-(See "Checkpoint 5.2 closeout — 2026-06-06" below.)
+Phase 5 — Landing + Polish + Pre-deploy — **IN PROGRESS** (Checkpoint 5.2 COMPLETE + closed out;
+Checkpoint 5.3 **solo code portion** code-complete 2026-06-06 — SEO/metadata + a11y + docs landed,
+deploy + live-verification half pending). Phase 4 is COMPLETE + live-verified (2026-06-05). Coverage
+thresholds **85/85/80/85**. **Next: the 5.3 deploy + live-verification pass, then the 5.3 closeout.**
+(See the "Current checkpoint" block + "Checkpoint 5.2 closeout — 2026-06-06" below.)
 
 ## Current checkpoint
-**Phase 5.2 — App polish: CODE-COMPLETE (2026-06-06), committed; session audit runs as a follow-up
-commit; live verification deferred.** Built: notification preferences end-to-end
+**Phase 5.3 — Audits + production deploy: SOLO CODE PORTION code-complete (2026-06-06).** This session
+landed the codeable half of 5.3 — SEO/metadata + a11y + docs — leaving the deploy + live-verification
+half (Vercel, prod Stripe/Supabase/Resend/Upstash, Google OAuth prod, prod Sentry, DNS, Lighthouse,
+production smoke test, README screenshots) for a paired live pass. Built this session:
+`app/sitemap.ts` + `app/robots.ts` (public routes only; auth/admin disallowed) + `tests/lib/sitemap.test.ts`;
+root-layout SEO (`metadataBase`, `title` template `"%s · basekit"`, OpenGraph + Twitter card, icons) +
+`viewport` theme-color; `app/opengraph-image.tsx` (build-generated 1200×630 OG image); per-page metadata
+reconciled to the template (marketing landing/pricing canonical; login refactored to a server wrapper +
+`LoginForm.tsx` so it can export metadata; signup/reset/verify titles); `robots: { index:false }` on the
+`(app)` + `(admin)` group layouts (+ standalone `/no-workspace`, `/team/accept`); a11y — MarketingNav
+mobile drawer Escape-to-close (closes the 5.1-deferred item) + reduced-motion `scroll-behavior` hardening;
+README + CHANGELOG v1.0. 624 tests; coverage 88.33/81.45/89.19/90.37. **Next: the 5.3 deploy +
+live-verification pass, then the 5.3 closeout.** (5.2 is COMPLETE — see "Checkpoint 5.2 closeout" below.)
+
+### (Prior) Phase 5.2 — App polish: COMPLETE + closed out (2026-06-06)
+Built: notification preferences end-to-end
 (`profiles.notification_preferences jsonb` migration + idempotent alter + column-grant widening,
 `lib/notifications.ts` opt-out merge / fail-open `shouldSendNotification`, `/settings/notifications`
 Switch form + `updateNotificationPreferencesAction`, gating wired into `lib/email.ts`'s payment-failed

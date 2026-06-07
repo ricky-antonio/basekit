@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { IconMenu2, IconX, IconBrandGithub } from "@tabler/icons-react"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,15 @@ const NAV_LINKS = [
 
 export default function MarketingNav() {
   const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [open])
 
   return (
     <header

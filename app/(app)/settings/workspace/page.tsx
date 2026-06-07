@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth"
 import { getWorkspace } from "@/lib/workspace"
 import WorkspaceForm from "./WorkspaceForm"
 
-export const metadata = { title: "Workspace Settings — basekit" }
+export const metadata = { title: "Workspace Settings" }
 
 export default async function WorkspaceSettingsPage() {
   const authResult = await requireAuth()

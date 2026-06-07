@@ -4,7 +4,7 @@ import { getNotificationPreferences, DEFAULT_NOTIFICATION_PREFERENCES } from "@/
 import PageHeader from "@/components/shared/PageHeader"
 import NotificationsForm from "./NotificationsForm"
 
-export const metadata = { title: "Notification Settings — basekit" }
+export const metadata = { title: "Notification Settings" }
 
 export default async function NotificationsSettingsPage() {
   const authResult = await requireAuth()

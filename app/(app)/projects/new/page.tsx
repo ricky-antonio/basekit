@@ -6,7 +6,7 @@ import { PLANS } from "@/lib/plans"
 import PageHeader from "@/components/shared/PageHeader"
 import NewProjectForm from "./NewProjectForm"
 
-export const metadata = { title: "New project — basekit" }
+export const metadata = { title: "New project" }
 
 export default async function NewProjectPage() {
   const authResult = await requireAuth()

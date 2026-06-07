@@ -13,7 +13,7 @@ import TeamMembers from "@/components/team/TeamMembers"
 import PendingInviteRow from "@/components/team/PendingInviteRow"
 import { IconUsersGroup } from "@tabler/icons-react"
 
-export const metadata = { title: "Team — basekit" }
+export const metadata = { title: "Team" }
 
 export default async function TeamPage() {
   const authResult = await requireAuth()

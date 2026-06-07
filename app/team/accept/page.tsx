@@ -1,7 +1,7 @@
 import { getUser } from "@/lib/auth"
 import AcceptInvitation from "@/components/team/AcceptInvitation"
 
-export const metadata = { title: "Accept invitation — basekit" }
+export const metadata = { title: "Accept invitation", robots: { index: false } }
 
 // Public (outside the (app) shell): an invitee may not have an account yet. The token
 // is read from the query; AcceptInvitation fetches the service-role preview and drives

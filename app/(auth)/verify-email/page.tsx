@@ -1,5 +1,11 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { IconMail } from "@tabler/icons-react"
+
+export const metadata: Metadata = {
+  title: "Verify your email",
+  robots: { index: false },
+}
 
 export default function VerifyEmailPage() {
   return (

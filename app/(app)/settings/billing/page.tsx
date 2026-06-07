@@ -12,7 +12,7 @@ import PricingTable from "@/components/billing/PricingTable"
 import UpgradedToast from "./UpgradedToast"
 import BillingActions from "./BillingActions"
 
-export const metadata = { title: "Billing — basekit" }
+export const metadata = { title: "Billing" }
 
 export default async function BillingSettingsPage({
   searchParams,

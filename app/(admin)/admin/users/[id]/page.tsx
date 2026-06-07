@@ -2,7 +2,7 @@ import Link from "next/link"
 import { IconArrowLeft } from "@tabler/icons-react"
 import UserDetail from "@/components/admin/UserDetail"
 
-export const metadata = { title: "User — admin — basekit" }
+export const metadata = { title: "User — admin" }
 
 export default async function AdminUserDetailPage({
   params,

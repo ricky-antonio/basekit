@@ -25,6 +25,16 @@ describe("MarketingNav", () => {
     expect(screen.getAllByRole("link", { name: "Pricing" }).length).toBeGreaterThanOrEqual(2)
   })
 
+  it("closes the open mobile menu on Escape", () => {
+    render(<MarketingNav />)
+    fireEvent.click(screen.getByRole("button", { name: /open menu/i }))
+    expect(screen.getByRole("button", { name: /close menu/i })).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.getByRole("button", { name: /open menu/i })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /close menu/i })).not.toBeInTheDocument()
+  })
+
   it("is sticky on scroll", () => {
     const { container } = render(<MarketingNav />)
     const header = container.querySelector("header")

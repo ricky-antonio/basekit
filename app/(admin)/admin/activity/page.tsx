@@ -2,7 +2,7 @@ import { Suspense } from "react"
 import PageHeader from "@/components/shared/PageHeader"
 import ActivityLog from "@/components/admin/ActivityLog"
 
-export const metadata = { title: "Activity — admin — basekit" }
+export const metadata = { title: "Activity — admin" }
 
 export default function AdminActivityPage() {
   return (

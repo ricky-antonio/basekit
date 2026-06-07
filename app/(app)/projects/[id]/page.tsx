@@ -6,7 +6,7 @@ import PageHeader from "@/components/shared/PageHeader"
 import DeleteProjectButton from "./DeleteProjectButton"
 import { IconArrowLeft } from "@tabler/icons-react"
 
-export const metadata = { title: "Project — basekit" }
+export const metadata = { title: "Project" }
 
 export default async function ProjectDetailPage({
   params,

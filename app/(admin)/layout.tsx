@@ -4,6 +4,9 @@ import { getImpersonationContext } from "@/lib/impersonation"
 import AdminNav from "@/components/admin/AdminNav"
 import ImpersonateBanner from "@/components/admin/ImpersonateBanner"
 
+// Admin surfaces are never indexed; merges down onto every (admin) page.
+export const metadata = { robots: { index: false } }
+
 // The admin authorization boundary. requireAdmin() runs before any /admin page
 // renders; a non-admin (or signed-out user who slipped past middleware) is bounced to
 // the dashboard with a toast trigger. AdminNav is the section's shell/nav.

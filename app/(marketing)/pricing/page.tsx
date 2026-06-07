@@ -4,9 +4,10 @@ import { IconCheck, IconMinus } from "@tabler/icons-react"
 import PricingTable from "@/components/billing/PricingTable"
 
 export const metadata: Metadata = {
-  title: "Pricing — basekit",
+  title: "Pricing",
   description:
     "Simple, transparent pricing for basekit. Start free, upgrade to Pro or Enterprise as you grow.",
+  alternates: { canonical: "/pricing" },
 }
 
 type Cell = boolean | string

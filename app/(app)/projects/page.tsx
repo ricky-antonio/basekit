@@ -11,7 +11,7 @@ import EmptyState from "@/components/shared/EmptyState"
 import { Button } from "@/components/ui/button"
 import { IconFolder, IconPlus } from "@tabler/icons-react"
 
-export const metadata = { title: "Projects — basekit" }
+export const metadata = { title: "Projects" }
 
 export default async function ProjectsPage() {
   const authResult = await requireAuth()

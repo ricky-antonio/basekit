@@ -8,9 +8,10 @@ import Testimonials from "@/components/marketing/Testimonials"
 import PricingTable from "@/components/billing/PricingTable"
 
 export const metadata: Metadata = {
-  title: "basekit — The foundation every SaaS needs to ship",
+  title: { absolute: "basekit — The foundation every SaaS needs to ship" },
   description:
     "A production-ready SaaS foundation: auth, workspaces, billing, teams, and admin on Next.js, Supabase, and Stripe.",
+  alternates: { canonical: "/" },
 }
 
 const TECH = ["Next.js", "Tailwind", "Supabase", "Stripe", "Resend", "Vercel"]

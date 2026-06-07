@@ -5,7 +5,7 @@ import { signOutAction } from "@/app/(auth)/actions"
 import SignOutButton from "./SignOutButton"
 import { IconUsersGroup } from "@tabler/icons-react"
 
-export const metadata = { title: "No workspace — basekit" }
+export const metadata = { title: "No workspace", robots: { index: false } }
 
 // Stable landing for an authenticated user who belongs to NO workspace — reachable
 // after an owner/admin removes a member who joined via invitation (and so never had

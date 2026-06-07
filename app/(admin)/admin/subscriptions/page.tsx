@@ -2,7 +2,7 @@ import { Suspense } from "react"
 import PageHeader from "@/components/shared/PageHeader"
 import SubscriptionsTable from "@/components/admin/SubscriptionsTable"
 
-export const metadata = { title: "Subscriptions — admin — basekit" }
+export const metadata = { title: "Subscriptions — admin" }
 
 export default function AdminSubscriptionsPage() {
   return (

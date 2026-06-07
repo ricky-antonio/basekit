@@ -8,6 +8,9 @@ import AppShell from "@/components/layout/AppShell"
 import ImpersonateBanner from "@/components/admin/ImpersonateBanner"
 import PastDueBanner from "@/components/billing/PastDueBanner"
 
+// Authenticated app surfaces are never indexed; merges down onto every (app) page.
+export const metadata = { robots: { index: false } }
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const authResult = await requireAuth()
   if (!authResult.ok) redirect("/login")

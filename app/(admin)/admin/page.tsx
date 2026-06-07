@@ -1,7 +1,7 @@
 import PageHeader from "@/components/shared/PageHeader"
 import AdminOverview from "@/components/admin/AdminOverview"
 
-export const metadata = { title: "Admin — basekit" }
+export const metadata = { title: "Admin" }
 
 export default function AdminPage() {
   return (
