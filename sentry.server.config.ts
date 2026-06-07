@@ -7,8 +7,8 @@ import * as Sentry from "@sentry/nextjs";
 Sentry.init({
   dsn: "https://09957084f38a8ab45405bf2ffa1caddc@o4508965978177536.ingest.us.sentry.io/4511465446375424",
 
-  // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
-  tracesSampleRate: 1,
+  // Error tracking only (CLAUDE.md scope) — no perf tracing. Avoids prod quota burn.
+  tracesSampleRate: 0,
 
   // Enable logs to be sent to Sentry
   enableLogs: true,

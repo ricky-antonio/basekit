@@ -19,6 +19,16 @@ export default withSentryConfig(nextConfig, {
 
   project: "basekit-nextjs",
 
+  // Sentry scope (CLAUDE.md) is error tracking, not perf tracing or Session Replay.
+  // Strip that dead code from the client bundle — it's the dominant first-load cost.
+  bundleSizeOptimizations: {
+    excludeTracing: true,
+    excludeDebugStatements: true,
+    excludeReplayShadowDom: true,
+    excludeReplayIframe: true,
+    excludeReplayWorker: true,
+  },
+
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
 

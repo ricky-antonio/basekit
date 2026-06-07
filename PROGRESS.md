@@ -22,8 +22,19 @@ server wrappers + `LoginForm.tsx`/`ForgotPasswordForm.tsx` so they can export me
 titles); `robots: { index:false }` on the
 `(app)` + `(admin)` group layouts (+ standalone `/no-workspace`, `/team/accept`); a11y — MarketingNav
 mobile drawer Escape-to-close (closes the 5.1-deferred item) + reduced-motion `scroll-behavior` hardening;
-README + CHANGELOG v1.0. 624 tests; coverage 88.33/81.45/89.19/90.37. **Next: the 5.3 deploy +
-live-verification pass, then the 5.3 closeout.** (5.2 is COMPLETE — see "Checkpoint 5.2 closeout" below.)
+README + CHANGELOG v1.0. 624 tests; coverage 88.33/81.45/89.19/90.37.
+
+**Pre-deploy prep also done (2026-06-07):** (1) **Bundle** — Next build output is gzipped; trimmed
+client Sentry to error-tracking-only (dropped Session Replay + browser tracing via
+`instrumentation-client.ts` + `bundleSizeOptimizations` in `next.config.ts`; `tracesSampleRate: 0` on
+server/edge), cutting the shared first-load floor **223 → 136 KB gz** (Sentry chunk 128 → 78). Marketing/
+admin/light routes now ≤158 KB; the 5 authenticated/auth pages remain 213–235 KB (13–35 over the 200 KB
+budget — the Supabase-browser-client + Sentry-core floor; lazy-loading deferred to v2). recharts confirmed
+lazy; no client Stripe.js. (2) **Env** — every `process.env`-read var is in `.env.example` (clean; 2 notes:
+`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` unused, `SENTRY_DSN` hardcoded). (3) **Tap targets** — bumped primary
+`Button` sizes to ≥44px (`default`/`lg`/`icon`), left dense table variants compact. New **`DEPLOY.md`**
+runbook captures all of this + the live deploy/verify checklist. **Next: the 5.3 deploy + live-verification
+pass (run `DEPLOY.md`), then the 5.3 closeout.** (5.2 is COMPLETE — see "Checkpoint 5.2 closeout" below.)
 
 ### (Prior) Phase 5.2 — App polish: COMPLETE + closed out (2026-06-06)
 Built: notification preferences end-to-end

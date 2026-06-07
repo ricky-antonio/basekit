@@ -736,3 +736,18 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 **Decision:** `app/(auth)/login/page.tsx` and `app/(auth)/forgot-password/page.tsx` are now thin **server** components that export `metadata` and render a `<Suspense>`-wrapped client form extracted to a sibling file (`LoginForm.tsx`, `ForgotPasswordForm.tsx`). This matches the pre-existing `signup/page.tsx` + `SignupForm.tsx` and `reset-password/page.tsx` + `ResetPasswordForm.tsx` split. `verify-email` and `reset-password` (already server) just gained `metadata`.
 **Why:** A `"use client"` module cannot export `metadata` (Next only reads it from Server Components). The pages used `useSearchParams`, which forces a client boundary + Suspense — so the fix is to push exactly that boundary down into a child form component and keep the page server-side for its metadata export. The form behavior (Suspense, `useActionState`, field errors) is unchanged.
 **Date:** 2026-06-06
+
+---
+
+## Client Sentry is trimmed to error-tracking only (no Session Replay, no browser tracing) to meet the bundle budget
+**Decision:** The Sentry setup wizard enabled Session Replay (`replayIntegration()`) and 100% browser/server tracing (`tracesSampleRate: 1`) by default — together ~87 KB gz of the client first-load. CLAUDE.md scopes Sentry to "webhook + API errors," so: `instrumentation-client.ts` drops the Replay integration and sets `tracesSampleRate: 0`; `next.config.ts` adds `bundleSizeOptimizations: { excludeTracing, excludeDebugStatements, excludeReplay* }` to tree-shake the dead code out of the bundle; `sentry.{server,edge}.config.ts` set `tracesSampleRate: 0`. Net: shared first-load floor 223 → 136 KB gz, Sentry chunk 128 → 78 KB gz. `captureException` (the actual use) is unaffected.
+**Why:** Every route exceeded the 200 KB gz budget purely because of the eager client Sentry bundle. Replay + perf tracing were never in scope, and `tracesSampleRate: 1` would also burn prod transaction quota. Error capture — the stated purpose — does not need either.
+**Trade-off:** No Session Replay or performance spans. If those are wanted later, re-enable in the two files (accepting the larger bundle). Authenticated pages (Supabase browser client + Sentry core floor) remain ~13–35 KB over the 200 KB budget; closing that needs lazy-loading the client SDKs — deferred (see DEPLOY.md).
+**Date:** 2026-06-07
+
+---
+
+## Primary Button size variants meet the 44px tap-target minimum; dense variants stay compact
+**Decision:** The shadcn "nova" preset shipped `Button` with a 32px default height (`h-8`). The **primary** size variants in `components/ui/button.tsx` were bumped to ≥44px (`default` → `h-11`, `lg` → `h-12`, `icon`/`icon-lg` → `size-11`); the explicitly-dense variants (`xs`, `sm`, `icon-xs`, `icon-sm`) were left compact.
+**Why:** code.md mandates a 44×44px minimum tap target, and 53 of 63 button usages take the default size — so the floor must be fixed at the primitive. The dense variants are opt-in for admin-table controls (which already add `min-h-9`) where 44px would break row density, so they're exempted by intent rather than bumped globally.
+**Date:** 2026-06-07
