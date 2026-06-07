@@ -27,7 +27,8 @@ function mergeStoredPreferences(raw: Json | null | undefined): NotificationPrefe
       : {}
   const result = { ...DEFAULT_NOTIFICATION_PREFERENCES }
   for (const kind of NOTIFICATION_KINDS) {
-    if (typeof stored[kind] === "boolean") result[kind] = stored[kind] as boolean
+    const value = stored[kind]
+    if (typeof value === "boolean") result[kind] = value
   }
   return result
 }
