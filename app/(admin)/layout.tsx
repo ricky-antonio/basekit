@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth"
 import { getImpersonationContext } from "@/lib/impersonation"
 import AdminNav from "@/components/admin/AdminNav"
 import ImpersonateBanner from "@/components/admin/ImpersonateBanner"
+import DemoBanner from "@/components/layout/DemoBanner"
 
 // Admin surfaces are never indexed; merges down onto every (admin) page.
 export const metadata = { robots: { index: false } }
@@ -18,6 +19,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-app)" }}>
+      <DemoBanner email={authResult.data.email} />
       <ImpersonateBanner context={impersonation} />
       <main id="main" className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         <AdminNav />

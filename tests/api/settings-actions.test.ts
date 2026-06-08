@@ -286,4 +286,15 @@ describe("deleteAccountAction", () => {
     await expect(deleteAccountAction()).rejects.toThrow("NEXT_REDIRECT:/login")
     expect(mocks.redirect).toHaveBeenCalledWith("/login")
   })
+
+  it("blocks the demo account from deleting itself", async () => {
+    mocks.requireAuth.mockResolvedValueOnce({
+      ok: true,
+      data: { id: "demo-1", email: "demo@demo.basekit.test" },
+    })
+    const result = await deleteAccountAction()
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN")
+    expect(mocks.deleteAccount).not.toHaveBeenCalled()
+  })
 })

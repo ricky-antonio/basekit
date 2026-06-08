@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { loginAction } from "../actions"
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton"
+import DemoLoginButton from "@/components/auth/DemoLoginButton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +15,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   missing_code: "That sign-in link is invalid or has expired.",
   workspace_failed: "Could not set up your workspace. Please try again.",
   access_denied: "Sign-in was cancelled.",
+  demo_unavailable: "The demo is unavailable right now. Please try again or sign up.",
 }
 
 export default function LoginForm() {
@@ -125,6 +127,10 @@ export default function LoginForm() {
           {isPending ? "Signing in…" : "Sign in"}
         </Button>
       </form>
+
+      <div className="mt-5">
+        <DemoLoginButton label="Explore the demo — no signup" variant="ghost" size="default" className="w-full" />
+      </div>
 
       <p className="mt-5 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
         No account?{" "}

@@ -3,6 +3,7 @@ import { cookies } from "next/headers"
 import { SignJWT, jwtVerify } from "jose"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
+import { isDemoEmail } from "@/lib/demo"
 import type { AuthUser } from "@/lib/auth"
 import type { ApiResult } from "@/lib/types"
 
@@ -52,6 +53,13 @@ export async function startImpersonation(
   }
 
   const targetEmail = data.user.email ?? null
+
+  // The public demo account (itself admin) may impersonate only the seeded demo accounts,
+  // never a real user — impersonation is read-only, but a real account's data still leaks.
+  if (isDemoEmail(admin.email) && !isDemoEmail(targetEmail)) {
+    return { ok: false, error: { error: "In the demo you can only impersonate demo accounts.", code: "FORBIDDEN" } }
+  }
+
   const expiresAtSeconds = Math.floor(Date.now() / 1000) + TTL_SECONDS
 
   let token: string

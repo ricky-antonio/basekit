@@ -54,6 +54,35 @@ export async function loginAction(
 }
 
 // ------------------------------------------------------------------ //
+// Demo                                                                //
+// ------------------------------------------------------------------ //
+
+// One-click sign-in to the shared, pre-seeded demo account (admin, but write-guarded —
+// see lib/demo.ts). Credentials live in server-only env; any failure falls back to /login.
+export async function demoLoginAction(): Promise<void> {
+  const email = process.env["DEMO_USER_EMAIL"]
+  const password = process.env["DEMO_USER_PASSWORD"]
+  if (!email || !password) {
+    redirect("/login?error=demo_unavailable")
+  }
+
+  const headersList = await headers()
+  const ip = headersList.get("x-forwarded-for") ?? headersList.get("x-real-ip") ?? "unknown"
+  const rl = await checkRateLimit("login", `demo:${ip}`)
+  if (!rl.success) {
+    redirect("/login?error=demo_unavailable")
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) {
+    redirect("/login?error=demo_unavailable")
+  }
+
+  redirect("/dashboard")
+}
+
+// ------------------------------------------------------------------ //
 // Signup                                                              //
 // ------------------------------------------------------------------ //
 

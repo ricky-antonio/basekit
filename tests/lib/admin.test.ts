@@ -259,6 +259,17 @@ describe("overrideUserPlan", () => {
     expect(mocks.logActivity).not.toHaveBeenCalled()
   })
 
+  it("blocks the demo admin account from overriding plans", async () => {
+    const demoAdmin = { id: "demo-1", role: "admin", email: "demo@demo.basekit.test" } as unknown as AuthUser
+    seedOverride()
+    const result = await overrideUserPlan({ admin: demoAdmin, userId: "u1", plan: "pro", reason: "x" })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("FORBIDDEN")
+    expect(getLastWrite("subscriptions", "update")).toBeUndefined()
+    expect(mocks.logActivity).not.toHaveBeenCalled()
+  })
+
   it("returns NOT_FOUND when the user owns no workspace", async () => {
     mockSupabaseFrom("workspaces", { data: null, error: null })
     const result = await overrideUserPlan({ admin: adminUser, userId: "u1", plan: "pro", reason: "x" })

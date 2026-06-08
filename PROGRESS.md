@@ -33,8 +33,26 @@ budget — the Supabase-browser-client + Sentry-core floor; lazy-loading deferre
 lazy; no client Stripe.js. (2) **Env** — every `process.env`-read var is in `.env.example` (clean; 2 notes:
 `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` unused, `SENTRY_DSN` hardcoded). (3) **Tap targets** — bumped primary
 `Button` sizes to ≥44px (`default`/`lg`/`icon`), left dense table variants compact. New **`DEPLOY.md`**
-runbook captures all of this + the live deploy/verify checklist. **Next: the 5.3 deploy + live-verification
-pass (run `DEPLOY.md`), then the 5.3 closeout.** (5.2 is COMPLETE — see "Checkpoint 5.2 closeout" below.)
+runbook captures all of this + the live deploy/verify checklist.
+
+**LIVE DEPLOY (2026-06-08, reusing the dev Supabase project for a portfolio demo):** site is up at
+**https://basekit.rickycodes.dev**. Verified: SEO/robots/sitemap/OG flip to the prod domain (fixed a
+missing-`NEXT_PUBLIC_SITE_URL` Vercel env → redeploy); Google OAuth sign-in lands on the dashboard;
+Supabase Auth Site URL/redirects set to prod; Stripe prod webhook created + **upgrade smoke test PROVEN
+end-to-end** (Checkout → webhook → DB flipped to `pro` with real `cus_`/`sub_` IDs). Production billing
+works. Still open: Resend domain (invite emails), Sentry prod test error, Lighthouse, README screenshots.
+
+**DEMO FEATURE built (2026-06-08, code-complete; live setup pending):** one-click "Explore the demo"
+(`demoLoginAction` → shared admin account) with server-side write-guards (`lib/demo.ts` `isDemoEmail`:
+blocks account-delete + admin plan-override; impersonation limited to `@demo.basekit.test`), a persistent
+`<DemoBanner>` in both shells, `seed-demo.mjs` extended to create the demo account (admin, Free, projects;
+CI-tolerant env read), and a nightly **GitHub Actions reset** (`.github/workflows/reset-demo.yml`). 640
+tests; coverage 88.43/81.6/89.3/90.45. **Live setup pending:** set `DEMO_USER_EMAIL`/`DEMO_USER_PASSWORD`
+in `.env.local` + Vercel + GH secrets, run `node scripts/seed-demo.mjs seed`, redeploy, test the CTA.
+See DECISIONS → "Public demo is a shared admin account…".
+
+**Next: finish demo live setup + the remaining 5.3 deploy follow-ups, then the 5.3 closeout.**
+(5.2 is COMPLETE — see "Checkpoint 5.2 closeout" below.)
 
 ### (Prior) Phase 5.2 — App polish: COMPLETE + closed out (2026-06-06)
 Built: notification preferences end-to-end

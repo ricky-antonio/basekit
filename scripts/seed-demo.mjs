@@ -4,18 +4,25 @@
 //   node scripts/seed-demo.mjs seed     # wipe prior demo data, then insert a fresh set
 //   node scripts/seed-demo.mjs clean    # remove all demo data only
 //
+// `seed` also (re)creates the public one-click demo LOGIN account from DEMO_USER_EMAIL /
+// DEMO_USER_PASSWORD (admin role, Free plan, a few projects). The GitHub Actions nightly
+// reset (.github/workflows/reset-demo.yml) runs `seed` to wipe visitor changes.
+//
 // Demo rows are tagged three ways so teardown is unambiguous and can NEVER touch a real
 // account: email domain @demo.basekit.test, user_metadata.seed === MARKER, slug 'demo-*'.
 // Metrics derive from the subscriptions table (see lib/admin-metrics.ts): created_at
 // drives the 12-month trend, updated_at + status='canceled' drives 30-day churn, and
 // stripe_price_id (matched to the env price IDs) drives MRR with a plan-rate fallback.
 
-import { readFileSync } from "node:fs"
+import { readFileSync, existsSync } from "node:fs"
 import { createClient } from "@supabase/supabase-js"
 
-for (const line of readFileSync(".env.local", "utf8").split("\n")) {
-  const m = line.match(/^([A-Z0-9_]+)=(.*)$/)
-  if (m) process.env[m[1]] ??= m[2].trim().replace(/^["']|["']$/g, "")
+// Local runs read .env.local; CI (the nightly reset workflow) injects env directly.
+if (existsSync(".env.local")) {
+  for (const line of readFileSync(".env.local", "utf8").split("\n")) {
+    const m = line.match(/^([A-Z0-9_]+)=(.*)$/)
+    if (m) process.env[m[1]] ??= m[2].trim().replace(/^["']|["']$/g, "")
+  }
 }
 
 const admin = createClient(
@@ -162,6 +169,69 @@ async function seedOne(entry) {
   if (usageError) throw new Error(`usage insert failed (${slug}): ${usageError.message}`)
 }
 
+// The public one-click demo login account (admin, write-guarded by lib/demo.ts). Seeded
+// as Free + a few real projects so a visitor can try the upgrade→Checkout flow and see a
+// populated Projects page. It's a @demo.basekit.test account, so clean() wipes it too.
+const DEMO_PROJECTS = [
+  { name: "Acme Marketing Site", description: "Next.js marketing site + blog." },
+  { name: "Internal Analytics", description: "Dashboards for the ops team." },
+  { name: "Mobile App API", description: "REST + webhooks for the iOS app." },
+]
+
+async function seedDemoAccount() {
+  const email = process.env.DEMO_USER_EMAIL
+  const password = process.env.DEMO_USER_PASSWORD
+  if (!email || !password) {
+    console.warn("  ! DEMO_USER_EMAIL / DEMO_USER_PASSWORD not set — skipping the demo login account")
+    return false
+  }
+
+  const { data: createdUser, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { seed: MARKER, display_name: "Demo Admin" },
+  })
+  if (userError) throw new Error(`demo account createUser failed: ${userError.message}`)
+  const userId = createdUser.user.id
+
+  // Admin role so visitors see the full feature set (admin dashboard + impersonation).
+  const { error: profileError } = await admin
+    .from("profiles")
+    .upsert({ id: userId, display_name: "Demo Admin", role: "admin" }, { onConflict: "id" })
+  if (profileError) throw new Error(`demo profile upsert failed: ${profileError.message}`)
+
+  const { data: workspace, error: workspaceError } = await admin
+    .from("workspaces")
+    .insert({ name: "basekit Demo", slug: "demo-basekit", owner_id: userId })
+    .select("id")
+    .single()
+  if (workspaceError) throw new Error(`demo workspace insert failed: ${workspaceError.message}`)
+
+  const { error: memberError } = await admin
+    .from("workspace_members")
+    .insert({ workspace_id: workspace.id, user_id: userId, role: "owner" })
+  if (memberError) throw new Error(`demo member insert failed: ${memberError.message}`)
+
+  const { error: subError } = await admin
+    .from("subscriptions")
+    .insert({ workspace_id: workspace.id, plan_name: "free", status: "active" })
+  if (subError) throw new Error(`demo subscription insert failed: ${subError.message}`)
+
+  const { error: projectError } = await admin
+    .from("projects")
+    .insert(DEMO_PROJECTS.map((project) => ({ workspace_id: workspace.id, ...project })))
+  if (projectError) throw new Error(`demo projects insert failed: ${projectError.message}`)
+
+  const { error: usageError } = await admin.from("usage").insert([
+    { workspace_id: workspace.id, resource: "projects", count: DEMO_PROJECTS.length },
+    { workspace_id: workspace.id, resource: "members", count: 1 },
+  ])
+  if (usageError) throw new Error(`demo usage insert failed: ${usageError.message}`)
+
+  return true
+}
+
 function summarize() {
   let mrr = 0
   const planCounts = { free: 0, pro: 0, enterprise: 0 }
@@ -190,6 +260,9 @@ for (const entry of DEMO) {
   await seedOne(entry)
   console.log(`  + ${entry.company.padEnd(18)} ${entry.plan}/${entry.status}${entry.interval ? ` (${entry.interval})` : ""}`)
 }
+
+const demoAccountCreated = await seedDemoAccount()
+if (demoAccountCreated) console.log(`  + ${"basekit Demo".padEnd(18)} demo login account (admin, free)`)
 
 const { mrr, planCounts } = summarize()
 console.log("")

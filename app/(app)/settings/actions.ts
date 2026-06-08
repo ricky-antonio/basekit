@@ -7,6 +7,7 @@ import { getWorkspace } from "@/lib/workspace"
 import { updateProfile, uploadAvatar, deleteAccount } from "@/lib/profile"
 import { updateWorkspace } from "@/lib/workspace-settings"
 import { updateNotificationPreferences } from "@/lib/notifications"
+import { isDemoEmail, DEMO_DISABLED_ERROR } from "@/lib/demo"
 import { updateProfileSchema } from "@/lib/validation/profile"
 import { updateWorkspaceSchema } from "@/lib/validation/workspace"
 import { changePasswordSchema } from "@/lib/validation/auth"
@@ -219,6 +220,11 @@ export async function changePasswordAction(
 export async function deleteAccountAction(): Promise<ApiResult<void>> {
   const authResult = await requireAuth()
   if (!authResult.ok) return { ok: false, error: authResult.error }
+
+  // Never let the shared demo account delete itself (it can't be recreated mid-day).
+  if (isDemoEmail(authResult.data.email)) {
+    return { ok: false, error: DEMO_DISABLED_ERROR }
+  }
 
   const rl = await checkRateLimit("accountDelete", authResult.data.id)
   if (!rl.success) return { ok: false, error: rl.error }

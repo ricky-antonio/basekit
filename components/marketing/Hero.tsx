@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { IconArrowRight, IconSparkles } from "@tabler/icons-react"
 import { Button } from "@/components/ui/button"
+import DemoLoginButton from "@/components/auth/DemoLoginButton"
 
 const AVATAR_INITIALS = ["DX", "SR", "JK", "ML"]
 
@@ -46,9 +47,7 @@ export default function Hero() {
               <IconArrowRight size={16} aria-hidden="true" />
             </Link>
           </Button>
-          <Button asChild size="lg" variant="outline">
-            <Link href="/login">Explore the demo</Link>
-          </Button>
+          <DemoLoginButton />
         </div>
 
         {/* Social proof */}

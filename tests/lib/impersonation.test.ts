@@ -72,6 +72,23 @@ describe("startImpersonation", () => {
     if (!result.ok) expect(result.error.code).toBe("NOT_FOUND")
     expect(jar.has(IMPERSONATION_COOKIE)).toBe(false)
   })
+
+  it("blocks the demo account from impersonating a real (non-demo) user", async () => {
+    const demoAdmin = { id: "demo-1", role: "admin", email: "demo@demo.basekit.test" } as unknown as AuthUser
+    mockSupabaseAdminUser({ id: "target-1", email: "real@example.com" })
+    const result = await startImpersonation({ admin: demoAdmin, targetUserId: "target-1" })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN")
+    expect(jar.has(IMPERSONATION_COOKIE)).toBe(false)
+  })
+
+  it("lets the demo account impersonate another demo account", async () => {
+    const demoAdmin = { id: "demo-1", role: "admin", email: "demo@demo.basekit.test" } as unknown as AuthUser
+    mockSupabaseAdminUser({ id: "demo-target", email: "nova@demo.basekit.test" })
+    const result = await startImpersonation({ admin: demoAdmin, targetUserId: "demo-target" })
+    expect(result.ok).toBe(true)
+    expect(jar.has(IMPERSONATION_COOKIE)).toBe(true)
+  })
 })
 
 describe("getImpersonationContext", () => {

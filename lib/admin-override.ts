@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logActivity } from "@/lib/activity"
 import { normalizePlan, resolveAccount } from "@/lib/admin-shared"
+import { isDemoEmail, DEMO_DISABLED_ERROR } from "@/lib/demo"
 import type { AuthUser } from "@/lib/auth"
 import type { ApiResult, PlanName } from "@/lib/types"
 
@@ -26,6 +27,11 @@ export async function overrideUserPlan(
 
   if (admin.role !== "admin") {
     return { ok: false, error: { error: "You do not have permission to override plans.", code: "FORBIDDEN" } }
+  }
+
+  // The public demo account is admin but must not mutate real accounts' plans.
+  if (isDemoEmail(admin.email)) {
+    return { ok: false, error: DEMO_DISABLED_ERROR }
   }
 
   const supabase = createServiceClient()

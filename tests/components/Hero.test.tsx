@@ -1,6 +1,9 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
 import Hero from "@/components/marketing/Hero"
+
+// Hero's demo CTA is a form bound to a server action — mock it out of the client render.
+vi.mock("@/app/(auth)/actions", () => ({ demoLoginAction: vi.fn() }))
 
 describe("Hero", () => {
   it("renders the hero headline", () => {
@@ -15,9 +18,10 @@ describe("Hero", () => {
     expect(screen.getByRole("link", { name: /get started/i })).toHaveAttribute("href", "/signup")
   })
 
-  it("Explore demo button links to /login", () => {
+  it("renders the one-click demo CTA as a submit button", () => {
     render(<Hero />)
-    expect(screen.getByRole("link", { name: /explore the demo/i })).toHaveAttribute("href", "/login")
+    const demo = screen.getByRole("button", { name: /explore the demo/i })
+    expect(demo).toHaveAttribute("type", "submit")
   })
 
   it("shows a social-proof count", () => {

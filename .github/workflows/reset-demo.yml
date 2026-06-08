@@ -1,0 +1,33 @@
+name: Reset demo data
+
+# Nightly re-seed of the public demo: wipes visitor changes + recreates the demo login
+# account and the multi-tenant sample dataset. Runs scripts/seed-demo.mjs (which tolerates
+# a missing .env.local and reads its config from the env below).
+
+on:
+  schedule:
+    - cron: "0 8 * * *" # 08:00 UTC daily
+  workflow_dispatch: {}
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+      - run: npm ci
+      - name: Re-seed demo data
+        run: node scripts/seed-demo.mjs seed
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DEMO_USER_EMAIL: ${{ secrets.DEMO_USER_EMAIL }}
+          DEMO_USER_PASSWORD: ${{ secrets.DEMO_USER_PASSWORD }}
+          # Optional — used only to match MRR to exact price IDs; falls back to plan rates.
+          STRIPE_PRICE_PRO_MONTHLY: ${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}
+          STRIPE_PRICE_PRO_ANNUAL: ${{ secrets.STRIPE_PRICE_PRO_ANNUAL }}
+          STRIPE_PRICE_ENTERPRISE_MONTHLY: ${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}
+          STRIPE_PRICE_ENTERPRISE_ANNUAL: ${{ secrets.STRIPE_PRICE_ENTERPRISE_ANNUAL }}

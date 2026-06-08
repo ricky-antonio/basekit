@@ -7,6 +7,7 @@ import { getProfile, deriveDisplayName } from "@/lib/profile"
 import AppShell from "@/components/layout/AppShell"
 import ImpersonateBanner from "@/components/admin/ImpersonateBanner"
 import PastDueBanner from "@/components/billing/PastDueBanner"
+import DemoBanner from "@/components/layout/DemoBanner"
 
 // Authenticated app surfaces are never indexed; merges down onto every (app) page.
 export const metadata = { robots: { index: false } }
@@ -40,6 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
+      <DemoBanner email={user.email} />
       <ImpersonateBanner context={impersonation} />
       <PastDueBanner status={subscriptionStatus} />
       <div className="min-h-0 flex-1">
