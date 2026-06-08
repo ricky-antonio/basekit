@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { mockSupabase, resetSupabaseMock } from "@/tests/mocks/supabase"
 
 const mocks = vi.hoisted(() => ({
@@ -35,6 +35,7 @@ const fakeHeaders = {
 
 const {
   loginAction,
+  demoLoginAction,
   signupAction,
   forgotPasswordAction,
   resetPasswordAction,
@@ -123,6 +124,61 @@ describe("loginAction", () => {
       "/dashboard",
     )
     expect(mocks.checkRateLimit).toHaveBeenCalledWith("login", "1.2.3.4:a@b.co")
+  })
+})
+
+describe("demoLoginAction", () => {
+  const origEmail = process.env["DEMO_USER_EMAIL"]
+  const origPassword = process.env["DEMO_USER_PASSWORD"]
+  afterEach(() => {
+    if (origEmail === undefined) delete process.env["DEMO_USER_EMAIL"]
+    else process.env["DEMO_USER_EMAIL"] = origEmail
+    if (origPassword === undefined) delete process.env["DEMO_USER_PASSWORD"]
+    else process.env["DEMO_USER_PASSWORD"] = origPassword
+  })
+
+  it("redirects to demo_unavailable when credentials are not configured", async () => {
+    process.env["DEMO_USER_EMAIL"] = "demo@demo.basekit.test"
+    delete process.env["DEMO_USER_PASSWORD"]
+    await expectRedirect(() => demoLoginAction(), "/login?error=demo_unavailable")
+    expect(mockSupabase.auth.signInWithPassword).not.toHaveBeenCalled()
+  })
+
+  it("signs in with the env credentials and redirects to /dashboard", async () => {
+    process.env["DEMO_USER_EMAIL"] = "demo@demo.basekit.test"
+    process.env["DEMO_USER_PASSWORD"] = "demo-pass"
+    mocks.checkRateLimit.mockResolvedValue({ success: true })
+    vi.mocked(mockSupabase.auth.signInWithPassword).mockResolvedValue({
+      data: { user: { id: "demo-1" }, session: {} } as any,
+      error: null,
+    })
+    await expectRedirect(() => demoLoginAction(), "/dashboard")
+    expect(mockSupabase.auth.signInWithPassword).toHaveBeenCalledWith({
+      email: "demo@demo.basekit.test",
+      password: "demo-pass",
+    })
+  })
+
+  it("redirects to demo_unavailable when sign-in fails", async () => {
+    process.env["DEMO_USER_EMAIL"] = "demo@demo.basekit.test"
+    process.env["DEMO_USER_PASSWORD"] = "demo-pass"
+    mocks.checkRateLimit.mockResolvedValue({ success: true })
+    vi.mocked(mockSupabase.auth.signInWithPassword).mockResolvedValue({
+      data: { user: null, session: null } as any,
+      error: { message: "Invalid login credentials" } as any,
+    })
+    await expectRedirect(() => demoLoginAction(), "/login?error=demo_unavailable")
+  })
+
+  it("redirects to demo_unavailable when rate-limited", async () => {
+    process.env["DEMO_USER_EMAIL"] = "demo@demo.basekit.test"
+    process.env["DEMO_USER_PASSWORD"] = "demo-pass"
+    mocks.checkRateLimit.mockResolvedValue({
+      success: false,
+      error: { error: "Too many requests", code: "RATE_LIMITED" },
+    })
+    await expectRedirect(() => demoLoginAction(), "/login?error=demo_unavailable")
+    expect(mockSupabase.auth.signInWithPassword).not.toHaveBeenCalled()
   })
 })
 
