@@ -46,4 +46,16 @@ describe("listActivity", () => {
     if (result.ok) return
     expect(result.error.code).toBe("INTERNAL_ERROR")
   })
+
+  it("scopes to demo workspaces when demoOnly is set", async () => {
+    mockSupabaseFrom("workspaces", { data: [{ id: "ws-demo" }], error: null })
+    mockSupabaseFrom("activity_log", { data: [], error: null })
+    await listActivity({ demoOnly: true })
+    expect(getSupabaseFilters("workspaces")).toContainEqual(
+      expect.objectContaining({ method: "like", args: ["slug", "demo-%"] }),
+    )
+    expect(getSupabaseFilters("activity_log")).toContainEqual(
+      expect.objectContaining({ method: "in", args: ["workspace_id", ["ws-demo"]] }),
+    )
+  })
 })

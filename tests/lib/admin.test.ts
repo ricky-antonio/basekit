@@ -91,6 +91,20 @@ describe("listUsers", () => {
     )
   })
 
+  it("scopes the workspaces query to demo-* when demoOnly is set", async () => {
+    seedTwoUsers()
+    await listUsers({ demoOnly: true })
+    expect(getSupabaseFilters("workspaces")).toContainEqual(
+      expect.objectContaining({ method: "like", args: ["slug", "demo-%"] }),
+    )
+  })
+
+  it("does not scope to demo workspaces by default", async () => {
+    seedTwoUsers()
+    await listUsers({})
+    expect(getSupabaseFilters("workspaces").some((f) => f.method === "like")).toBe(false)
+  })
+
   it("search matches email, display_name, and workspace name", async () => {
     seedTwoUsers()
     const byName = await listUsers({ search: "bob" })
@@ -213,6 +227,26 @@ describe("getUserDetail", () => {
     expect(result.data.recentActivity).toEqual([])
     expect(result.data.displayName).toBe("Meta Alice") // display_name null → user_metadata name
     expect(result.data.role).toBe("user") // role null → default
+  })
+
+  it("demoOnly: returns NOT_FOUND for a non-demo workspace (no drilling into real tenants)", async () => {
+    seedDetail() // workspace slug "acme" is not demo-*
+    const result = await getUserDetail("u1", true)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("NOT_FOUND")
+  })
+
+  it("demoOnly: returns the detail for a demo workspace", async () => {
+    mockSupabaseFrom("profiles", { data: { id: "u1", display_name: "Nova", avatar_url: null, role: "user" }, error: null })
+    mockSupabaseAdminUser({ id: "u1", email: "nova@demo.basekit.test", user_metadata: {} })
+    mockSupabaseFrom("workspaces", { data: { id: "ws-1", name: "Northwind", slug: "demo-northwind", created_at: "2026-01-01T00:00:00Z" }, error: null })
+    mockSupabaseFrom("subscriptions", { data: null, error: null })
+    mockSupabaseFrom("activity_log", { data: null, error: null })
+    const result = await getUserDetail("u1", true)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.workspace?.slug).toBe("demo-northwind")
   })
 })
 

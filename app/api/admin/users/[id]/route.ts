@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth"
 import { checkRateLimit } from "@/lib/ratelimit"
 import { getUserDetail, overrideUserPlan } from "@/lib/admin"
+import { isDemoEmail } from "@/lib/demo"
 import { planOverrideSchema } from "@/lib/validation/admin"
 import { zodFieldErrors } from "@/lib/validation/errors"
 import { statusForCode } from "@/lib/http"
@@ -20,7 +21,7 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
   if (!rl.success) return NextResponse.json(rl.error, { status: 429 })
 
   const { id } = await context.params
-  const result = await getUserDetail(id)
+  const result = await getUserDetail(id, isDemoEmail(authResult.data.email))
   if (!result.ok) {
     return NextResponse.json(result.error, { status: statusForCode(result.error.code) })
   }

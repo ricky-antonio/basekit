@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
+import { getDemoWorkspaceIds } from "@/lib/admin-shared"
 import type { ApiResult, PlanName } from "@/lib/types"
 
 // All metrics derive from the subscriptions table alone: every user owns exactly one
@@ -92,12 +93,16 @@ function buildTrend(subs: RawSubscription[], now: Date): MrrTrendPoint[] {
   return points
 }
 
-export async function getMetrics(): Promise<ApiResult<AdminMetrics>> {
+export async function getMetrics(demoOnly = false): Promise<ApiResult<AdminMetrics>> {
   const supabase = createServiceClient()
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("subscriptions")
     .select("plan_name, status, stripe_price_id, trial_end, created_at, updated_at")
+  // Demo scoping: only subscriptions belonging to demo-* workspaces feed the metrics.
+  if (demoOnly) query = query.in("workspace_id", await getDemoWorkspaceIds(supabase))
+
+  const { data, error } = await query
 
   if (error) {
     console.error("[admin-metrics.getMetrics] read failed", error)

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth"
 import { checkRateLimit } from "@/lib/ratelimit"
 import { getMetrics } from "@/lib/admin-metrics"
+import { isDemoEmail } from "@/lib/demo"
 import { statusForCode } from "@/lib/http"
 
 // Always evaluated per-request: requireAdmin reads the session cookie, so this route
@@ -16,7 +17,7 @@ export async function GET(): Promise<Response> {
   const rl = await checkRateLimit("adminRead", authResult.data.id)
   if (!rl.success) return NextResponse.json(rl.error, { status: 429 })
 
-  const result = await getMetrics()
+  const result = await getMetrics(isDemoEmail(authResult.data.email))
   if (!result.ok) {
     return NextResponse.json(result.error, { status: statusForCode(result.error.code) })
   }

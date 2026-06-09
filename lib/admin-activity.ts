@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
+import { getDemoWorkspaceIds } from "@/lib/admin-shared"
 import type { ApiResult } from "@/lib/types"
 
 // Activity-log reads for the admin section. Service-role; call only from a
@@ -56,6 +57,8 @@ export interface ListActivityInput {
   action?: string
   workspaceId?: string
   page?: number
+  // When set (the public demo admin), restrict the feed to demo workspaces only.
+  demoOnly?: boolean
 }
 
 export async function listActivity(input: ListActivityInput = {}): Promise<ApiResult<AdminActivityList>> {
@@ -68,6 +71,8 @@ export async function listActivity(input: ListActivityInput = {}): Promise<ApiRe
     .select("id, workspace_id, actor_id, impersonator_id, action, target_type, target_id, metadata, created_at")
   if (input.action) query = query.eq("action", input.action)
   if (input.workspaceId) query = query.eq("workspace_id", input.workspaceId)
+  // Demo scoping: only activity in demo-* workspaces.
+  if (input.demoOnly) query = query.in("workspace_id", await getDemoWorkspaceIds(supabase))
 
   const { data, error } = await query
     .order("created_at", { ascending: false })

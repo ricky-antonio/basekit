@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth"
 import { checkRateLimit } from "@/lib/ratelimit"
 import { listActivity } from "@/lib/admin-activity"
+import { isDemoEmail } from "@/lib/demo"
 import { adminActivitySchema } from "@/lib/validation/admin"
 import { zodFieldErrors } from "@/lib/validation/errors"
 import { statusForCode } from "@/lib/http"
@@ -28,7 +29,7 @@ export async function GET(request: Request): Promise<Response> {
     )
   }
 
-  const result = await listActivity(parsed.data)
+  const result = await listActivity({ ...parsed.data, demoOnly: isDemoEmail(authResult.data.email) })
   if (!result.ok) {
     return NextResponse.json(result.error, { status: statusForCode(result.error.code) })
   }

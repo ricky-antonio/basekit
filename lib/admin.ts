@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { mapActivityRow } from "@/lib/admin-activity"
-import { normalizePlan, resolveAccount } from "@/lib/admin-shared"
+import { normalizePlan, resolveAccount, DEMO_WORKSPACE_PREFIX } from "@/lib/admin-shared"
 import type { AdminActivityRow, RawActivityRow } from "@/lib/admin-activity"
 import type { ApiResult, PlanName, SubscriptionStatus, UserRole } from "@/lib/types"
 
@@ -60,6 +60,8 @@ export interface ListUsersInput {
   plan?: PlanName
   status?: SubscriptionStatus
   page?: number
+  // When set (the public demo admin), restrict the listing to demo workspaces only.
+  demoOnly?: boolean
 }
 
 // One subscription row exists per workspace and every user owns exactly one workspace
@@ -89,10 +91,14 @@ export async function listUsers(input: ListUsersInput = {}): Promise<ApiResult<A
   }
 
   const workspaceIds = subscriptions.map((s) => s.workspace_id)
-  const { data: workspaceRows } = await supabase
+  let workspaceQuery = supabase
     .from("workspaces")
     .select("id, name, slug, owner_id, created_at")
     .in("id", workspaceIds)
+  // Demo scoping: only demo-* workspaces survive, so real tenants' subs fall out of the
+  // row loop below (no workspace match → skipped), and search/total see demo data only.
+  if (input.demoOnly) workspaceQuery = workspaceQuery.like("slug", `${DEMO_WORKSPACE_PREFIX}%`)
+  const { data: workspaceRows } = await workspaceQuery
 
   const workspaceById = new Map((workspaceRows ?? []).map((w) => [w.id, w]))
   const ownerIds = (workspaceRows ?? []).map((w) => w.owner_id)
@@ -153,7 +159,10 @@ export async function listUsers(input: ListUsersInput = {}): Promise<ApiResult<A
   }
 }
 
-export async function getUserDetail(userId: string): Promise<ApiResult<AdminUserDetail>> {
+export async function getUserDetail(
+  userId: string,
+  demoOnly = false,
+): Promise<ApiResult<AdminUserDetail>> {
   const supabase = createServiceClient()
 
   const { data: profile, error } = await supabase
@@ -180,6 +189,11 @@ export async function getUserDetail(userId: string): Promise<ApiResult<AdminUser
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle()
+
+  // Demo admin can't drill into a real tenant by guessing a URL — treat non-demo as absent.
+  if (demoOnly && (!workspace || !workspace.slug.startsWith(DEMO_WORKSPACE_PREFIX))) {
+    return { ok: false, error: { error: "User not found.", code: "NOT_FOUND" } }
+  }
 
   let subscription: AdminUserDetail["subscription"] = null
   let recentActivity: AdminActivityRow[] = []

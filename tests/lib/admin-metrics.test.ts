@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { mockSupabase, mockSupabaseFrom, resetSupabaseMock } from "@/tests/mocks/supabase"
+import { mockSupabase, mockSupabaseFrom, getSupabaseFilters, resetSupabaseMock } from "@/tests/mocks/supabase"
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => mockSupabase,
@@ -45,6 +45,25 @@ afterEach(() => {
 })
 
 describe("getMetrics", () => {
+  it("scopes to demo workspaces when demoOnly is set", async () => {
+    mockSupabaseFrom("workspaces", { data: [{ id: "ws-demo" }], error: null })
+    mockSupabaseFrom("subscriptions", { data: [sub({})], error: null })
+    const result = await getMetrics(true)
+    expect(result.ok).toBe(true)
+    expect(getSupabaseFilters("workspaces")).toContainEqual(
+      expect.objectContaining({ method: "like", args: ["slug", "demo-%"] }),
+    )
+    expect(getSupabaseFilters("subscriptions")).toContainEqual(
+      expect.objectContaining({ method: "in", args: ["workspace_id", ["ws-demo"]] }),
+    )
+  })
+
+  it("does not scope by default", async () => {
+    mockSupabaseFrom("subscriptions", { data: [sub({})], error: null })
+    await getMetrics()
+    expect(getSupabaseFilters("subscriptions").some((f) => f.method === "in")).toBe(false)
+  })
+
   it("returns 0 MRR when no paid subscriptions", async () => {
     mockSupabaseFrom("subscriptions", { data: [sub({}), sub({})], error: null })
     const result = await getMetrics()

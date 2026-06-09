@@ -42,6 +42,16 @@ Supabase Auth Site URL/redirects set to prod; Stripe prod webhook created + **up
 end-to-end** (Checkout → webhook → DB flipped to `pro` with real `cus_`/`sub_` IDs). Production billing
 works. Still open: Resend domain (invite emails), Sentry prod test error, Lighthouse, README screenshots.
 
+**Found + fixed during demo setup (2026-06-08): the live DB was missing `profiles.notification_preferences`**
+— the Phase 5.2 migration was never applied to the (reused dev) DB. Impact was app-wide, not demo-specific:
+`getProfile` selects that column, so the read errored → `profile` was `null` everywhere → display names/avatars
+fell back to email/`user_metadata` AND `isAdmin` (`profile?.role === "admin"`) was `false`, so the Topbar
+**Admin** link was hidden for all admins (direct `/admin` still worked — `requireAdmin` selects only `role`).
+Fixed by running the idempotent `alter table profiles add column if not exists notification_preferences …`
++ the `grant update (…, notification_preferences)` from `combined.sql` in the live SQL Editor; verified
+`getProfile` (incl. RLS-as-demo) now returns clean with `role=admin`. Lesson: apply pending migrations to
+the live DB as part of deploy — `combined.sql` is the source of truth.
+
 **DEMO FEATURE built (2026-06-08, code-complete; live setup pending):** one-click "Explore the demo"
 (`demoLoginAction` → shared admin account) with server-side write-guards (`lib/demo.ts` `isDemoEmail`:
 blocks account-delete + admin plan-override; impersonation limited to `@demo.basekit.test`), a persistent

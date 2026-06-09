@@ -84,6 +84,8 @@ function makeQueryBuilder(table: string) {
     eq: vi.fn((...args: unknown[]) => recordFilter("eq", args)),
     neq: vi.fn((...args: unknown[]) => recordFilter("neq", args)),
     in: vi.fn((...args: unknown[]) => recordFilter("in", args)),
+    like: vi.fn((...args: unknown[]) => recordFilter("like", args)),
+    ilike: vi.fn((...args: unknown[]) => recordFilter("ilike", args)),
     is: vi.fn((...args: unknown[]) => recordFilter("is", args)),
     gt: vi.fn((...args: unknown[]) => recordFilter("gt", args)),
     gte: vi.fn((...args: unknown[]) => recordFilter("gte", args)),

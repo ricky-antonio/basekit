@@ -9,6 +9,17 @@ export function normalizePlan(value: string): PlanName {
   return value === "pro" || value === "enterprise" ? value : "free"
 }
 
+// Demo workspaces are slugged 'demo-*' by scripts/seed-demo.mjs. Admin reads scope to these
+// when the acting admin is the public demo account, so real tenants never leak into the demo.
+export const DEMO_WORKSPACE_PREFIX = "demo-"
+
+export async function getDemoWorkspaceIds(
+  supabase: ReturnType<typeof createServiceClient>,
+): Promise<string[]> {
+  const { data } = await supabase.from("workspaces").select("id").like("slug", `${DEMO_WORKSPACE_PREFIX}%`)
+  return (data ?? []).map((w) => w.id)
+}
+
 export interface ResolvedAccount {
   email: string | null
   metaName: string | null
