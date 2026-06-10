@@ -11,6 +11,25 @@ jobs:
     name: Type-check, test, build
     runs-on: ubuntu-latest
 
+    # Dummy values — enough for module-level client construction (Stripe/Supabase/Resend/
+    # Upstash) during tests AND the production build's page-data collection. No real calls.
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://test.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+      STRIPE_SECRET_KEY: sk_test_dummy
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_dummy
+      STRIPE_WEBHOOK_SECRET: whsec_test_dummy
+      STRIPE_PRICE_PRO_MONTHLY: price_pro_monthly_test
+      STRIPE_PRICE_PRO_ANNUAL: price_pro_annual_test
+      STRIPE_PRICE_ENTERPRISE_MONTHLY: price_enterprise_monthly_test
+      STRIPE_PRICE_ENTERPRISE_ANNUAL: price_enterprise_annual_test
+      RESEND_API_KEY: re_test_dummy
+      FROM_EMAIL: test@basekit.local
+      UPSTASH_REDIS_REST_URL: https://test.upstash.io
+      UPSTASH_REDIS_REST_TOKEN: test-token
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+
     steps:
       - uses: actions/checkout@v5
 
@@ -30,27 +49,6 @@ jobs:
 
       - name: Run tests with coverage
         run: npm run test:coverage
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: https://test.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
-          SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
-          STRIPE_SECRET_KEY: sk_test_dummy
-          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_dummy
-          STRIPE_WEBHOOK_SECRET: whsec_test_dummy
-          STRIPE_PRICE_PRO_MONTHLY: price_pro_monthly_test
-          STRIPE_PRICE_PRO_ANNUAL: price_pro_annual_test
-          STRIPE_PRICE_ENTERPRISE_MONTHLY: price_enterprise_monthly_test
-          STRIPE_PRICE_ENTERPRISE_ANNUAL: price_enterprise_annual_test
-          RESEND_API_KEY: re_test_dummy
-          FROM_EMAIL: test@basekit.local
-          UPSTASH_REDIS_REST_URL: https://test.upstash.io
-          UPSTASH_REDIS_REST_TOKEN: test-token
-          NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
       - name: Build
         run: npm run build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: https://test.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
-          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_dummy
-          NEXT_PUBLIC_SITE_URL: http://localhost:3000
