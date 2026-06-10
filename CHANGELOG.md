@@ -7,6 +7,19 @@ Newest entries at the top.
 
 ---
 
+## [2026-06-09] — v1.0.0 — Production launch 🚀
+
+Live at **[basekit.rickycodes.dev](https://basekit.rickycodes.dev)**.
+
+- **Deployed to Vercel** on a custom domain (HTTPS), reusing the dev Supabase project as a portfolio demo backend. Verified live: Google OAuth sign-in, the full Stripe upgrade lifecycle (Checkout → prod webhook → DB flip, with real `cus_`/`sub_` IDs), and SEO (robots/sitemap/OG resolve to the prod domain).
+- **One-click public demo** — "Explore the demo" signs into a shared, pre-seeded **admin** account (`demoLoginAction`); destructive writes are guarded server-side (`lib/demo.ts`), all admin reads are scoped to demo data only, and a nightly GitHub Actions job re-seeds it.
+- **Email live** — verified Resend domain (`rickycodes.dev`, DKIM/SPF/DMARC), `FROM_EMAIL` switched off the sandbox sender, plain-text multipart added for deliverability.
+- **Observability** — production Sentry error capture verified.
+- **Lighthouse** (prod): `/` 96 Perf · **100** A11y · 100 BP · 100 SEO; `/dashboard` **100** Perf · **100** A11y.
+- **Fixes found during the deploy pass** — applied the missing `notification_preferences` migration to the live DB (had silently broken `getProfile` → hidden Admin link); Topbar theme-toggle hydration guard; raised `--text-muted` + pricing-toggle contrast to WCAG AA; replaced the generic favicon with the basekit 3×3 grid icon (+ Apple touch icon).
+
+---
+
 ## [2026-06-06] — v1.0 — Feature-complete
 
 The full SaaS foundation, end to end. Summary of all five phases:
@@ -18,8 +31,6 @@ The full SaaS foundation, end to end. Summary of all five phases:
 - **Phase 5 — Landing + Polish + Pre-deploy.** Public marketing site (8-section landing + standalone pricing/FAQ); notification preferences; past-due banner; welcome tour; empty-state polish; SEO metadata (title template, OG image, Twitter card, theme-color), `sitemap.ts` + `robots.ts`, noindex on authenticated surfaces; a11y hardening (skip links, reduced-motion, Escape-to-close nav).
 
 Coverage threshold raised across phases to the final **85 / 85 / 80 / 85**.
-
-> Production deployment + live screenshots land with Checkpoint 5.3's deploy pass.
 
 ---
 

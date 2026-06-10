@@ -4,8 +4,24 @@
 
 A production-ready SaaS starter — auth, subscription billing, teams, admin, and transactional email all wired together end-to-end. Sign up, hit a plan limit, upgrade through Stripe, invite a teammate, cancel — the full billing lifecycle works.
 
-**Status:** v1.0 — feature-complete (Phases 1–5). Production deploy + live screenshots pending (Checkpoint 5.3).
-**Live URL:** _(pending production deploy — see [`PROGRESS.md`](PROGRESS.md))_
+**Status:** v1.0 — live in production.
+**Live demo:** **[basekit.rickycodes.dev](https://basekit.rickycodes.dev)** — click **"Explore the demo"** for a one-click, pre-seeded admin tour (no signup).
+
+---
+
+## Screenshots
+
+| Landing | Pricing |
+|---|---|
+| ![Landing page](public/landing.png) | ![Pricing page](public/pricing.png) |
+
+| Dashboard | Admin metrics |
+|---|---|
+| ![Dashboard](public/dashboard.png) | ![Admin metrics + MRR chart](public/chart.png) |
+
+| Billing | |
+|---|---|
+| ![Billing & plan management](public/billing.png) | |
 
 ---
 

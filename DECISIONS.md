@@ -759,3 +759,17 @@ Add an entry here whenever a meaningful decision is made — during planning or 
 **Why:** A provided demo beats self-signup for a portfolio — recruiter attention is seconds, and the strongest features (admin/impersonation/populated metrics) are invisible to a fresh empty signup. Admin scope maximizes the showcase; server-side guards (not just hidden UI) are mandatory because the demo shares a DB with the owner's real account. Keeping the account Free lets visitors exercise the real upgrade→Checkout flow. Identifying demo accounts by email (env + `@demo.basekit.test`) needs no migration and works as a pure check at every call site, which already has the relevant email in hand.
 **Trade-off:** Shared mutable state between concurrent visitors, accepted for low portfolio traffic + nightly reset. A dedicated demo DB would remove the guard requirement but was declined to avoid re-provisioning.
 **Date:** 2026-06-08
+
+---
+
+## All admin reads are scoped to demo data when the acting admin is the demo account
+**Decision:** Because the demo admin shares the database with real accounts, the four admin reads (`listUsers`, `getUserDetail`, `getMetrics`, `listActivity`) take a `demoOnly` flag, set per-route from `isDemoEmail(actor.email)`. When true, each query is constrained to demo workspaces (`slug LIKE 'demo-%'`, via a shared `getDemoWorkspaceIds()` in `lib/admin-shared.ts`): the user list + subscriptions table show only demo accounts, metrics compute over demo subs only, the activity feed shows only demo activity, and `getUserDetail` returns `NOT_FOUND` for a non-demo workspace (so a real tenant can't be reached by guessing a URL). Real admins are unaffected (`demoOnly` is false).
+**Why:** Without this, the public demo admin's user/subscription/activity tables and dashboard metrics leak the owner's real accounts (emails, plans). Scoping by the seed's `demo-*` slug (the same tag `seed-demo.mjs` teardown uses) is the one reliable dimension shared by all four reads.
+**Date:** 2026-06-09
+
+---
+
+## Reused the dev Supabase as the production/demo backend; surfaced a migration-drift class of bug
+**Decision:** v1.0 ships on Vercel pointing at the existing dev Supabase project (not a separate prod DB), an explicit portfolio-demo trade-off (see the demo-account decision above). The deploy pass surfaced that the live DB lagged the codebase: the Phase 5.2 `profiles.notification_preferences` migration had never been applied, so `getProfile`'s `SELECT` errored → `profile` was null app-wide → display names fell back to email and the Topbar **Admin** link disappeared for all admins (direct `/admin` still worked, since `requireAdmin` selects only `role`). Fixed by applying the idempotent `alter`/`grant` from `combined.sql`; a full column-by-column drift check then confirmed the live schema matches `combined.sql` (no other gaps).
+**Why:** Recorded as the lesson, not just the fix — when reusing a long-lived DB as prod, **apply all pending migrations as a deploy step**; `combined.sql` is the source of truth and a `select`-every-column probe is a cheap drift check.
+**Date:** 2026-06-09

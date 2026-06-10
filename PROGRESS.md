@@ -3,14 +3,16 @@
 ---
 
 ## Current phase
-Phase 5 — Landing + Polish + Pre-deploy — **IN PROGRESS** (Checkpoint 5.2 COMPLETE + closed out;
-Checkpoint 5.3 **solo code portion** code-complete 2026-06-06 — SEO/metadata + a11y + docs landed,
-deploy + live-verification half pending). Phase 4 is COMPLETE + live-verified (2026-06-05). Coverage
-thresholds **85/85/80/85**. **Next: the 5.3 deploy + live-verification pass, then the 5.3 closeout.**
-(See the "Current checkpoint" block + "Checkpoint 5.2 closeout — 2026-06-06" below.)
+Phase 5 — Landing + Polish + Pre-deploy — **COMPLETE**. 🚀 **basekit v1.0.0 shipped to production
+on 2026-06-09** — live at **https://basekit.rickycodes.dev** (one-click demo via "Explore the demo").
+All five phases done; coverage **85/85/80/85** held; Lighthouse `/` 96/100/100/100, `/dashboard` 100/100.
+**The project is complete — tag `v1.0.0`.** (See "Checkpoint 5.3 closeout — 2026-06-09" + the
+"v1.0.0 production launch — 2026-06-09" verification log below.)
 
 ## Current checkpoint
-**Phase 5.3 — Audits + production deploy: SOLO CODE PORTION code-complete (2026-06-06).** This session
+**Phase 5.3 — Audits + production deploy: COMPLETE (2026-06-09) — v1.0.0 shipped.** Formal closeout at
+"Checkpoint 5.3 closeout — 2026-06-09" below; the notes here are the chronological record across three
+sessions (solo code 06-06 → pre-deploy prep 06-07 → live deploy + demo + audits 06-08/09). Solo session
 landed the codeable half of 5.3 — SEO/metadata + a11y + docs — leaving the deploy + live-verification
 half (Vercel, prod Stripe/Supabase/Resend/Upstash, Google OAuth prod, prod Sentry, DNS, Lighthouse,
 production smoke test, README screenshots) for a paired live pass. Built this session:
@@ -61,8 +63,9 @@ tests; coverage 88.43/81.6/89.3/90.45. **Live setup pending:** set `DEMO_USER_EM
 in `.env.local` + Vercel + GH secrets, run `node scripts/seed-demo.mjs seed`, redeploy, test the CTA.
 See DECISIONS → "Public demo is a shared admin account…".
 
-**Next: finish demo live setup + the remaining 5.3 deploy follow-ups, then the 5.3 closeout.**
-(5.2 is COMPLETE — see "Checkpoint 5.2 closeout" below.)
+**All of the above is now DONE** — demo live + verified, Resend domain verified + `FROM_EMAIL` switched
++ plain-text added, Sentry prod capture verified, Lighthouse run (100 A11y after the contrast fix),
+favicon shipped. See the "v1.0.0 production launch — 2026-06-09" log + "Checkpoint 5.3 closeout" below.
 
 ### (Prior) Phase 5.2 — App polish: COMPLETE + closed out (2026-06-06)
 Built: notification preferences end-to-end
@@ -77,6 +80,7 @@ layout (self-hides unless `past_due`, CTA → portal); `<WelcomeTour>` on `/dash
 (See "Checkpoint 5.2 closeout — 2026-06-06" below.)
 
 ## Completed
+- [2026-06-09] **Phase 5.3 + v1.0.0 production launch** 🚀 — Shipped to Vercel at https://basekit.rickycodes.dev (reusing the dev Supabase as the demo backend). Solo code (06-06): SEO/metadata + sitemap/robots + OG image + a11y + docs. Pre-deploy prep (06-07): gzipped-bundle audit + Sentry trim (floor 223→136 KB), env audit, 44px tap targets, `DEPLOY.md`. Live deploy + demo + audits (06-08/09): one-click **demo** (admin, write-guarded, demo-scoped reads, nightly GH-Actions reset), **Resend** domain verified + `FROM_EMAIL` + plain-text, **Sentry** prod capture verified, **Lighthouse** `/` 96/100/100/100 + `/dashboard` 100/100, **a11y** contrast→AA (A11y 100), Topbar hydration guard, **basekit favicon** (3×3 grid + apple-icon). Found+fixed: live DB missing `notification_preferences` (broke `getProfile`/Admin link app-wide). 652 tests; coverage 88.5/81.75/89.38/90.5. (See "Checkpoint 5.3 closeout — 2026-06-09" + "v1.0.0 production launch — 2026-06-09" below.)
 - [2026-06-06] Phase 5.2 — App polish: `profiles.notification_preferences jsonb` (migration + idempotent alter + column-grant widening to include it), `lib/notifications.ts` (opt-out merge over all-`true` defaults; `shouldSendNotification` reads via service client + fails open) + `lib/validation/notifications.ts`; `/settings/notifications` real Switch form + `updateNotificationPreferencesAction`; preference gating wired into `lib/email.ts` (`payment_failed`/`trial_ending`) via a new `ownerId` on `getWorkspaceOwnerContact`; `<PastDueBanner>` in the app layout; `<WelcomeTour>` on `/dashboard?welcome=true` (callback sets it for first-time signups); empty-state polish (team/admin-activity/billing-Free). 616 tests; coverage 88.28/81.46/89.11/90.34. Committed before the session audit (audit + any fixes land as a follow-up commit). (See "Checkpoint 5.2 closeout — 2026-06-06" below.)
 - [2026-06-06] Phase 5.1 — Landing + pricing pages: `app/(marketing)/` route group (shared nav/footer layout + skip link), `/` landing (8 sections incl. fixed-dark pricing band with the one allowed radial teal glow), standalone `/pricing` (PricingTable + grouped comparison table + 8-question FAQ); `PricingTable` extended with `variant="dark"` + `ctaHref` (reused across app billing + both marketing surfaces); 7 marketing components; deleted placeholder `app/page.tsx`; coverage thresholds → 85/85/80/85. Post-build audit: 0 🔴, 3 🟠 all fixed (nav backdrop-blur removed, 44px tap targets, DECISIONS entries). 591 tests; coverage 88.52/81.34/88.83/90.65. Code-complete + committed; live visual/Lighthouse/mobile verification deferred to a paired pass. (See "Checkpoint 5.1 closeout — 2026-06-06" below.)
 - [2026-06-05] Phase 4 manual verification — full admin + impersonation suite verified live (paired session): admin-only auth boundary (non-admin redirect + toast, role-gated Topbar Admin link), user search/plan/status filters, audited plan override (DB + `activity_log`), subscriptions + Stripe deep links, activity-log filter + pagination, **impersonation end-to-end** (swap → target's real data → comped plan on target's billing → Exit → both `admin.impersonation_*` audit rows w/ `impersonator_id`), RLS **14/14**, mobile (DevTools + real-phone). Applied the 3 admin-select RLS policies live. **Found + fixed 5 issues**: debounced live user-search (was submit-only, empty didn't reset), search now matches workspace name, plan-override audit row now names the target user, `/settings/billing` now in the settings sub-nav, and `rls-verify.mjs` teardown no longer leaks fixtures. Seeded a realistic 16-workspace demo set (`scripts/seed-demo.mjs`). All committed; 567 tests; coverage 87.82/80.04/89.22/90.12. (See "Phase 4 manual verification — 2026-06-05" below.)
@@ -192,6 +196,78 @@ After the scaffold installed, three known issues were addressed in the same Clau
 - **postcss XSS advisory:** accepted, not fixed (see Known issues + DECISIONS.md).
 
 Last known-good build: `npm run build` → clean (zero TS errors, zero lint warnings, 5 routes generated).
+
+---
+
+## Checkpoint 5.3 closeout — 2026-06-09
+
+### 1. Planned vs delivered
+- ✅ A11y audit + fixes — skip links (already present), Escape-to-close nav, reduced-motion hardening, icon-button aria, **contrast raised to WCAG AA** (`--text-muted` + pricing toggle); Lighthouse A11y **100** on both pages.
+- ✅ Performance audit — Lighthouse `/` 96, `/dashboard` 100; bundle measured gzipped (floor 223→136 KB after Sentry trim); recharts lazy-confirmed; no client Stripe.js. ⚠️ 5 authed pages 213–235 KB gz (over the 200 KB soft budget — Supabase+Sentry floor; deferred to v2).
+- ✅ SEO + metadata — title template, OG image, Twitter, theme-color, `sitemap.ts` + `robots.ts`, noindex on app/admin; **basekit favicon** (3×3 grid `icon.svg` + `apple-icon`) replacing the generic one.
+- ✅ Documentation — README (live URL + 5 screenshots), CHANGELOG v1.0.0 entry, `DEPLOY.md` runbook.
+- ✅ Pre-deploy + deploy — Vercel (custom domain, HTTPS), env vars set, Stripe prod webhook, Resend domain verified, prod Sentry. ⚠️ **Reused the dev Supabase** as the demo backend (deliberate portfolio trade-off, not a separate prod project).
+- ➕ **Beyond plan:** one-click public **demo** (admin, write-guarded, demo-scoped admin reads, nightly GitHub-Actions reset).
+
+### 2. In plain English (delivered)
+basekit v1.0.0 is live at **basekit.rickycodes.dev**. A visitor can one-click into a pre-seeded admin demo, browse the full product (which only ever shows demo data), and the real billing lifecycle works on the live site (Checkout → prod webhook → Pro). All transactional email sends from the verified `rickycodes.dev` domain. Lighthouse clears every target (A11y 100 after fixing a real contrast issue). The deploy pass also surfaced + fixed a production-affecting migration-drift bug (missing `notification_preferences` column) and a theme-toggle hydration mismatch. The one deliberate divergence from the plan is reusing the dev Supabase project as the demo backend rather than standing up a separate prod DB.
+
+### 3. Done-when verification
+- ✅ Lighthouse `/` ≥90/95/95/95 → **96 / 100 / 100 / 100** (measured headless vs prod)
+- ✅ Lighthouse `/dashboard` ≥90/95 → **100 / 100**
+- ✅ Manual a11y audit (skip links, focus/Escape, contrast AA both themes, reduced-motion, keyboard)
+- ✅ Env vars set in Vercel (Production); ✅ Live URL serves HTTPS on the domain
+- ✅ Production Stripe webhook receives events → upgrade smoke test proven (real `cus_`/`sub_` IDs in DB)
+- ✅ Production Sentry receives a deliberate test error (probe verified in Issues, then removed)
+- ⚠️ "All 6 emails in production" → domain verified + a direct test send **inbox-delivered** + a live invite delivered (to spam — new-domain reputation, auth all passing); not every template individually fired
+- ⚠️ Smoke test signup→verify→invite→upgrade→cancel → OAuth signin + upgrade **proven**; invite email delivered; cancel not re-driven live (same webhook pipeline as upgrade)
+- ✅ CHANGELOG v1.0.0 + README screenshots; ✅ `npm run test:coverage` **88.5 / 81.75 / 89.38 / 90.5** (≥85/85/80/85); ✅ `npm run build` clean (47 routes)
+
+### 4. Test files added/changed (across 5.3)
+`tests/lib/sitemap.test.ts` (new), `tests/lib/demo.test.ts` (new), `tests/components/DemoLoginButton.test.tsx` (new), `tests/components/DemoBanner.test.tsx` (new), `tests/components/MarketingNav.test.tsx` (+Escape), `tests/components/Hero.test.tsx` (demo CTA), `tests/api/auth-actions.test.ts` (+demoLoginAction), `tests/api/settings-actions.test.ts` (+demo guard), `tests/lib/admin.test.ts` / `admin-metrics.test.ts` / `admin-activity.test.ts` (+demo scoping), `tests/lib/impersonation.test.ts` (+demo guard), `tests/lib/email.test.ts` (+plain-text), `tests/lib/activity.test.ts` + `tests/mocks/supabase.ts` (mock `like`/`ilike`). 652 tests / 95 files.
+
+### 5. New DECISIONS.md entries
+SEO title-template + OG-via-`opengraph-image`; auth pages as server wrappers; Sentry trimmed to error-only; Button 44px sizing; public demo (admin + guards + nightly reset); demo-scoped admin reads; reused-dev-DB + migration-drift lesson.
+
+### 6. Deferred items (→ v2)
+- Authed-page first-load JS over the 200 KB gz soft budget (lazy-load Supabase/Sentry client).
+- Separate production Supabase/Upstash projects (currently shares dev for the demo).
+- Light-mode visual re-check of the darker `--text-muted`; full screen-reader pass.
+
+### 7. Known issues
+- Invite emails land in spam on the new sending domain (auth passes; reputation warms over time; "report not spam" trains the owner's inbox).
+- Hydration errors in Sentry from the owner's extension-laden browser are **extension noise** (confirmed clean in incognito), not a code bug.
+- `npm audit` postcss advisory still accepted (transitive via Next 15) — see DECISIONS.
+
+### 8. What surprised me
+Reusing the dev DB as prod meant a long-since-merged migration (`notification_preferences`) had never hit the live schema — and because `requireAdmin` selects only `role` while `getProfile` selects the missing column, it manifested as "admin link missing but `/admin` works by URL," which looked like an auth bug but was schema drift.
+
+---
+
+## v1.0.0 production launch — 2026-06-09
+
+Live deploy driven over a paired session against prod (Vercel + reused dev Supabase + Stripe test-mode + Resend + Upstash). Site: **https://basekit.rickycodes.dev**.
+
+### Verified live
+- ✅ **Deploy/SEO** — HTTPS on the domain; `robots.txt`/`sitemap.xml`/canonical/OG resolve to the prod domain (after fixing a missing `NEXT_PUBLIC_SITE_URL` Vercel env → redeploy); OG image renders (200, png).
+- ✅ **Auth** — Google OAuth → `/dashboard` with workspace; Supabase Auth Site URL + redirect allow-list set to prod.
+- ✅ **Billing** — upgrade smoke test end-to-end: Checkout (4242) → prod Stripe webhook → DB `pro/active` with real `cus_`/`sub_`/`price_` IDs.
+- ✅ **Demo** — one-click "Explore the demo" → admin dashboard; admin views show **demo data only** (real accounts no longer leak); guards confirmed; nightly GH-Actions reset green; 17 demo accounts after reseed.
+- ✅ **Email** — `rickycodes.dev` verified in Resend (DKIM/SPF/DMARC pass); `FROM_EMAIL` → `noreply@rickycodes.dev`; direct API test send inbox-delivered; live invite delivered (spam — reputation).
+- ✅ **Sentry** — prod probe captured in Issues (`environment: production`), route removed.
+- ✅ **Lighthouse** — `/` 96/100/100/100, `/dashboard` 100/100 (headless, incognito-equivalent).
+
+### Bugs found + fixed during the launch (none caught by mocked unit tests)
+1. **Missing `notification_preferences` column on the live DB** → `getProfile` errored app-wide → Admin link hidden + display names fell back. Applied the migration; full schema-drift probe clean afterward. (Migrations now a documented deploy step.)
+2. **Topbar theme-toggle hydration mismatch** — `resolvedTheme` in render without a `mounted` guard. Added the guard (matching the marketing `ThemeToggle`).
+3. **Real-tenant leak in the demo admin** — admin reads weren't demo-scoped. Added `demoOnly` scoping to all four reads.
+4. **WCAG-AA contrast failures** (`--text-muted` + pricing toggle on dark) — raised to AA in both themes → Lighthouse A11y 100.
+5. **Generic Vercel favicon** — replaced with the basekit 3×3 grid (`icon.svg` + `apple-icon`).
+
+### RLS verified for tables: (unchanged — schema same as Phase 4's live-verified 14/14; demo scoping is app-layer, RLS untouched)
+
+### Still deferred (non-blocking, v2)
+Authed-page gzipped bundle budget; separate prod Supabase/Upstash; full screen-reader + light-mode visual pass; per-template email delivery sweep + cancel-half of the smoke test.
 
 ---
 
