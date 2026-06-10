@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useTheme } from "next-themes"
 import { IconSun, IconMoon, IconSettings, IconLogout, IconUser, IconLoader2, IconShieldLock } from "@tabler/icons-react"
 import { startTopProgress } from "@/components/layout/TopProgressBar"
@@ -26,6 +26,11 @@ interface TopbarProps {
 export default function Topbar({ workspaceName, displayName, avatarUrl, isAdmin = false }: TopbarProps) {
   const { resolvedTheme, setTheme } = useTheme()
   const [signingOut, setSigningOut] = useState(false)
+  // resolvedTheme is only known on the client; gate theme-dependent render on mount so the
+  // SSR markup matches the first client render (otherwise: hydration mismatch on every page).
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const isDark = mounted && resolvedTheme === "dark"
 
   const initials = displayName
     .split(" ")
@@ -118,12 +123,12 @@ export default function Topbar({ workspaceName, displayName, avatarUrl, isAdmin 
             className="flex items-center gap-2 cursor-pointer"
             onClick={toggleTheme}
           >
-            {resolvedTheme === "dark" ? (
+            {isDark ? (
               <IconSun size={15} aria-hidden="true" />
             ) : (
               <IconMoon size={15} aria-hidden="true" />
             )}
-            {resolvedTheme === "dark" ? "Light mode" : "Dark mode"}
+            {isDark ? "Light mode" : "Dark mode"}
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
