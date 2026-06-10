@@ -1,4 +1,5 @@
 import { createElement, type ReactElement } from "react"
+import { render } from "@react-email/render"
 import * as Sentry from "@sentry/nextjs"
 import { resend } from "@/lib/resend"
 import { shouldSendNotification } from "@/lib/notifications"
@@ -26,11 +27,22 @@ export interface SendEmailParams {
 // ok=false, and the caller carries on.
 export async function sendEmail({ to, subject, react }: SendEmailParams): Promise<SendEmailResult> {
   try {
+    // Pair the HTML with a plain-text alternative — multipart text+HTML emails are less
+    // likely to be spam-filtered than HTML-only. Best-effort: a render failure just omits
+    // the text part rather than blocking the (non-critical) send.
+    let text: string | undefined
+    try {
+      text = await render(react, { plainText: true })
+    } catch (renderError) {
+      console.warn("[email.send] plain-text render failed; sending HTML-only", renderError)
+    }
+
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to,
       subject,
       react,
+      text,
     })
 
     if (error) {

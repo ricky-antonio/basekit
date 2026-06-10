@@ -53,6 +53,13 @@ describe("sendEmail", () => {
     expect(sent?.from).toBeTruthy()
   })
 
+  it("includes a plain-text alternative rendered from the template", async () => {
+    await sendWelcomeEmail({ to: "a@b.com", name: "Ada" })
+    const sent = getSentEmails()[0]
+    expect(typeof sent?.text).toBe("string")
+    expect((sent?.text ?? "").trim().length).toBeGreaterThan(0)
+  })
+
   it("returns ok=false on a Resend error (does not throw)", async () => {
     mockResendSend.mockResolvedValueOnce({ data: null, error: { message: "boom", name: "x" } })
 
