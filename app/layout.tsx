@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     title: "basekit — The foundation every SaaS needs to ship",
     description: "The foundation every SaaS needs to ship.",
   },
-  icons: { icon: "/favicon.ico" },
+  // Icons auto-detected from app/icon.svg (favicon) + app/apple-icon.tsx (iOS).
 }
 
 export const viewport: Viewport = {
