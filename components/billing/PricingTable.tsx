@@ -70,7 +70,7 @@ export default function PricingTable({
     toggleTrack: isDark ? "#1E1E1E" : "var(--bg-surface-hover)",
     toggleActiveBg: isDark ? "#0A0A0A" : "var(--bg-surface)",
     toggleActiveText: isDark ? "#FAFAFA" : "var(--text-primary)",
-    toggleIdleText: isDark ? "#666666" : "var(--text-muted)",
+    toggleIdleText: isDark ? "#8A8A8A" : "var(--text-muted)", /* AA: 4.8:1 on the #1E1E1E band (was #666666, 2.9:1) */
     cardBg: isDark ? "#141414" : "var(--bg-surface)",
     cardBgPopular: isDark ? "#042F2E" : "var(--bg-surface)",
     cardBorder: isDark ? "#1E1E1E" : "var(--border-default)",
